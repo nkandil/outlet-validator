@@ -1,0 +1,4 @@
+id,lat,lng,name,channel
+OUT-1,30.0001,31.0001,Alpha Market,Traditional
+OUT-2,30.0002,31.0002,Beta Kiosk,Modern
+OUT-3,30.0003,31.0003,Gamma Shop,Traditional

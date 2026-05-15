@@ -1,0 +1,15 @@
+{
+  "name": "@workspace/api-spec",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "codegen": "orval --config orval.config.ts",
+    "build": "pnpm run codegen",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "orval": "^7.17.0",
+    "typescript": "^5.9.3"
+  }
+}

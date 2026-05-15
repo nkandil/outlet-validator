@@ -1,0 +1,14 @@
+node_modules/
+**/node_modules/
+.opencode/
+.netlify/
+.env
+.env.*
+!.env.example
+dist/
+coverage/
+test-results/
+*.tsbuildinfo
+*.log
+artifacts/outlet-validator/dist/
+artifacts/outlet-validator/.vite/

@@ -1,0 +1,665 @@
+openapi: 3.1.0
+info:
+  title: Outlet Validator API
+  version: 0.1.0
+servers:
+  - url: /api
+paths:
+  /healthz:
+    get:
+      operationId: getHealthz
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: ok
+  /auth/login:
+    post:
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials
+  /auth/me:
+    get:
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+  /users:
+    get:
+      operationId: listUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: role
+          schema:
+            $ref: "#/components/schemas/UserRole"
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuthUser"
+    post:
+      operationId: createUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "201":
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "409":
+          description: Email already exists
+  /groups:
+    get:
+      operationId: listGroups
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserGroup"
+    post:
+      operationId: createGroup
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGroupBody"
+      responses:
+        "201":
+          description: Created group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGroup"
+  /groups/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+    patch:
+      operationId: updateGroup
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGroupBody"
+      responses:
+        "200":
+          description: Updated group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGroup"
+    delete:
+      operationId: deleteGroup
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Deleted
+  /groups/{id}/members:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getGroupMembers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Group members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupMembersResponse"
+    put:
+      operationId: setGroupMembers
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupMembersResponse"
+      responses:
+        "200":
+          description: Group members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupMembersResponse"
+  /sessions:
+    get:
+      operationId: listSessions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Session summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SessionSummary"
+    post:
+      operationId: createSession
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionSummary"
+  /sessions/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getSession
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Session detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateSession
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSessionBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionSummary"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteSession
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+  /sessions/{id}/assignments:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getSessionAssignments
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Assigned reviewers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentsResponse"
+    put:
+      operationId: setSessionAssignments
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignmentsResponse"
+      responses:
+        "200":
+          description: Assigned reviewers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentsResponse"
+  /sessions/{sessionId}/validations/{outletKey}:
+    parameters:
+      - in: path
+        name: sessionId
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: outletKey
+        required: true
+        schema:
+          type: string
+    put:
+      operationId: upsertValidation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutletValidation"
+      responses:
+        "200":
+          description: Saved validation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutletValidation"
+  /dashboard:
+    get:
+      operationId: getDashboard
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: sessionId
+          schema:
+            type: string
+        - in: query
+          name: reviewerId
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Dashboard metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardMetrics"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    UserRole:
+      type: string
+      enum: [admin, coordinator, reviewer]
+    AuthUser:
+      type: object
+      required: [id, name, email, role]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+    LoginResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/AuthUser"
+    AssignmentsResponse:
+      type: object
+      required: [userIds, groupIds]
+      properties:
+        userIds:
+          type: array
+          items:
+            type: string
+        groupIds:
+          type: array
+          items:
+            type: string
+    GroupMembersResponse:
+      type: object
+      required: [userIds]
+      properties:
+        userIds:
+          type: array
+          items:
+            type: string
+    CreateUserBody:
+      type: object
+      required: [name, email, role, password]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
+        password:
+          type: string
+    UserGroup:
+      type: object
+      required: [id, name, description, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    CreateGroupBody:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+    UpdateGroupBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+    DashboardMetrics:
+      type: object
+      required: [totalSessions, activeSessions, totalOutlets, reviewedOutlets, pendingOutlets, validCount, invalidCount, needsUpdateCount, duplicateCount, gpsMissingCount]
+      properties:
+        totalSessions:
+          type: integer
+        activeSessions:
+          type: integer
+        totalOutlets:
+          type: integer
+        reviewedOutlets:
+          type: integer
+        pendingOutlets:
+          type: integer
+        validCount:
+          type: integer
+        invalidCount:
+          type: integer
+        needsUpdateCount:
+          type: integer
+        duplicateCount:
+          type: integer
+        gpsMissingCount:
+          type: integer
+    FieldValidation:
+      type: object
+      required: [status, correctedValue, comment]
+      properties:
+        status:
+          type: string
+          enum: [Valid, Invalid, Not Sure, ""]
+        correctedValue:
+          type: string
+        comment:
+          type: string
+    OutletValidation:
+      type: object
+      required: [status, generalComments, validatedBy, validatedAt, fields]
+      properties:
+        status:
+          type: string
+          enum: [Valid, Needs Update, Invalid, Duplicate, Could Not Verify, ""]
+        generalComments:
+          type: string
+        correctedValue:
+          type: string
+        validatedBy:
+          type: string
+        validatedAt:
+          type: string
+        reviewerId:
+          type: string
+        gpsLatitude:
+          type:
+            - number
+            - "null"
+        gpsLongitude:
+          type:
+            - number
+            - "null"
+        gpsAccuracyMeters:
+          type:
+            - number
+            - "null"
+        gpsCapturedAt:
+          type: string
+        gpsPermissionStatus:
+          type: string
+          enum: [granted, denied, unavailable, ""]
+        distanceToOutletMeters:
+          type:
+            - number
+            - "null"
+        fields:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/FieldValidation"
+    ConfirmedMapping:
+      type: object
+      required: [id, lat, lng, displayField, colorByField, colorByValues, shapeByField, shapeByValues]
+      properties:
+        id:
+          type: string
+        lat:
+          type: string
+        lng:
+          type: string
+        displayField:
+          type: string
+        colorByField:
+          type: string
+        colorByValues:
+          type: object
+          additionalProperties:
+            type: string
+        shapeByField:
+          type: string
+        shapeByValues:
+          type: object
+          additionalProperties:
+            type: string
+    SessionConfig:
+      type: object
+      required: [confirmedMapping, visibleFields, fieldsToVerify, reviewerName, rawHeaders]
+      properties:
+        confirmedMapping:
+          $ref: "#/components/schemas/ConfirmedMapping"
+        visibleFields:
+          type: array
+          items:
+            type: string
+        fieldsToVerify:
+          type: array
+          items:
+            type: string
+        reviewerName:
+          type: string
+        rawHeaders:
+          type: array
+          items:
+            type: string
+    Outlet:
+      type: object
+      required: [outletKey, rowIndex, id, latitude, longitude, originalData, distanceKm]
+      properties:
+        outletKey:
+          type: string
+        rowIndex:
+          type: integer
+        id:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        originalData:
+          type: object
+          additionalProperties: true
+        distanceKm:
+          type:
+            - number
+            - "null"
+    SessionSummary:
+      type: object
+      required: [id, name, fileName, radiusKm, outletCount, reviewedCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        fileName:
+          type: string
+        radiusKm:
+          type: number
+        outletCount:
+          type: integer
+        reviewedCount:
+          type: integer
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    SessionDetail:
+      allOf:
+        - $ref: "#/components/schemas/SessionSummary"
+        - type: object
+          required: [config, outlets, validations]
+          properties:
+            config:
+              $ref: "#/components/schemas/SessionConfig"
+            outlets:
+              type: array
+              items:
+                $ref: "#/components/schemas/Outlet"
+            validations:
+              type: object
+              additionalProperties:
+                $ref: "#/components/schemas/OutletValidation"
+    CreateSessionBody:
+      type: object
+      required: [name, fileName, config, outlets, validations]
+      properties:
+        name:
+          type: string
+        fileName:
+          type: string
+        radiusKm:
+          type: number
+        config:
+          $ref: "#/components/schemas/SessionConfig"
+        outlets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Outlet"
+        validations:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/OutletValidation"
+    UpdateSessionBody:
+      type: object
+      properties:
+        name:
+          type: string
+        radiusKm:
+          type: number
+        config:
+          $ref: "#/components/schemas/SessionConfig"
+        outlets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Outlet"
+        validations:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/OutletValidation"
