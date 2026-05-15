@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { resolveConnectionString } = await import("./client");
+const { createPoolConfig, resolveConnectionString } = await import("./client");
 
 describe("database client", () => {
   it("uses DATABASE_URL when it is configured", () => {
@@ -13,5 +13,23 @@ describe("database client", () => {
     vi.stubEnv("DATABASE_URL", "");
 
     expect(() => resolveConnectionString()).toThrow("DATABASE_URL is required for PostgreSQL persistence");
+  });
+
+  it("enables TLS when the connection string requires SSL", () => {
+    const config = createPoolConfig("postgres://postgres.ref:password@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=require");
+
+    expect(config).toEqual({
+      connectionString: "postgres://postgres.ref:password@aws-0-eu-central-1.pooler.supabase.com:6543/postgres",
+      ssl: { rejectUnauthorized: false }
+    });
+  });
+
+  it("enables TLS for Supabase pooler URLs even when sslmode is omitted", () => {
+    const config = createPoolConfig("postgres://postgres.ref:password@aws-1-eu-central-1.pooler.supabase.com:5432/postgres");
+
+    expect(config).toEqual({
+      connectionString: "postgres://postgres.ref:password@aws-1-eu-central-1.pooler.supabase.com:5432/postgres",
+      ssl: { rejectUnauthorized: false }
+    });
   });
 });

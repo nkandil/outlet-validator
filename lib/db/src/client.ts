@@ -14,8 +14,26 @@ export function resolveConnectionString() {
   return process.env.DATABASE_URL;
 }
 
+export function createPoolConfig(connectionString: string): pg.PoolConfig {
+  const url = new URL(connectionString);
+  const isSupabaseHost = url.hostname.endsWith(".supabase.co") || url.hostname.endsWith(".pooler.supabase.com");
+  const requiresSsl = url.searchParams.get("sslmode") === "require" || isSupabaseHost;
+
+  if (url.searchParams.get("sslmode") === "require") {
+    url.searchParams.delete("sslmode");
+  }
+
+  const config: pg.PoolConfig = { connectionString: url.toString() };
+
+  if (requiresSsl) {
+    config.ssl = { rejectUnauthorized: false };
+  }
+
+  return config;
+}
+
 export function getPool() {
-  pool ??= new Pool({ connectionString: resolveConnectionString() });
+  pool ??= new Pool(createPoolConfig(resolveConnectionString()));
   return pool;
 }
 
