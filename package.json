@@ -6,6 +6,7 @@
   "packageManager": "pnpm@11.1.2",
   "scripts": {
     "build": "pnpm -r --if-present run build",
+    "netlify:build": "pnpm --filter @workspace/db run push && pnpm --filter @workspace/outlet-validator run build",
     "typecheck": "pnpm -r --if-present run typecheck",
     "test": "pnpm -r --if-present run test",
     "test:e2e": "playwright test",
