@@ -6,7 +6,7 @@ import { sessionsApi, usersApi } from "../lib/api";
 import { buildLocalSessionSummary, localSessionId, type LocalSessionSummary } from "../lib/local-session";
 import { formatDate } from "../lib/utils";
 import { useOutletStore } from "../store";
-import { Badge, Button, Input, Panel } from "../components/ui";
+import { Alert, Badge, Button, Dropdown, DropdownItem, Input, PageHeader, PageShell, Panel } from "../components/ui";
 
 type SessionListItem = SessionSummary | LocalSessionSummary;
 
@@ -125,36 +125,42 @@ export function Step0SessionPicker() {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-slate-50 px-4 py-6">
+    <PageShell>
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-normal text-slate-950">Outlet Validator</h1>
-            <p className="mt-1 text-sm font-medium text-slate-500">Market Visit Validation</p>
-          </div>
-          <div className="flex gap-2">
+        <PageHeader
+          title="Outlet Validator"
+          description="Market Visit Validation"
+          actions={
+            <>
             {canManage ? (
-              <a className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900" href="/dashboard">
+              <a className="hidden min-h-10 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-semibold shadow-sm hover:bg-accent sm:inline-flex" href="/dashboard">
                 Dashboard
               </a>
             ) : null}
             {canAdminister(user) ? (
-              <a className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900" href="/admin">
+              <a className="hidden min-h-10 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-semibold shadow-sm hover:bg-accent sm:inline-flex" href="/admin">
                 Admin
               </a>
             ) : null}
-            <Button variant="secondary" onClick={loadSessions}>
+            <Button className="hidden sm:inline-flex" variant="secondary" onClick={loadSessions}>
               <RefreshCw size={18} />
               Refresh
             </Button>
             {canManage ? <Button onClick={startNew}>Start New Session</Button> : null}
-            <Button variant="ghost" onClick={logout}>
+            <Button className="hidden sm:inline-flex" variant="ghost" onClick={logout}>
               Logout
             </Button>
-          </div>
-        </header>
+            <Dropdown label="Menu" className="sm:hidden">
+              {canManage ? <DropdownItem><a href="/dashboard">Dashboard</a></DropdownItem> : null}
+              {canAdminister(user) ? <DropdownItem><a href="/admin">Admin</a></DropdownItem> : null}
+              <DropdownItem onClick={loadSessions}>Refresh</DropdownItem>
+              <DropdownItem onClick={logout}>Logout</DropdownItem>
+            </Dropdown>
+            </>
+          }
+        />
 
-        {error ? <Panel className="border-red-200 bg-red-50 text-sm text-red-700">{error}</Panel> : null}
+        {error ? <Alert tone="danger">{error}</Alert> : null}
         {loading ? <Panel>Loading saved sessions...</Panel> : null}
         {!loading && displaySessions.length === 0 ? (
           <Panel className="grid gap-4 py-10 text-center">
@@ -174,7 +180,7 @@ export function Step0SessionPicker() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   {renaming === session.id && !("isLocal" in session) ? (
-                    <div className="flex gap-2">
+            <div className="flex gap-2">
                       <Input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} />
                       <Button onClick={() => saveRename(session.id)}>Save</Button>
                     </div>
@@ -206,7 +212,7 @@ export function Step0SessionPicker() {
                   ) : null}
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2 text-sm">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
                 <Badge>{session.outletCount} outlets</Badge>
                 <Badge tone={session.reviewedCount ? "success" : "neutral"}>{session.reviewedCount} reviewed</Badge>
                 <Badge>{session.radiusKm ?? 5} km radius</Badge>
@@ -220,7 +226,7 @@ export function Step0SessionPicker() {
                 </div>
               )}
               {assigning === session.id ? (
-                <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="grid gap-3 rounded-md border bg-muted/50 p-3">
                   <div className="text-sm font-semibold text-slate-900">Reviewers</div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {reviewers.map((reviewer) => (
@@ -242,6 +248,6 @@ export function Step0SessionPicker() {
           ))}
         </div>
       </div>
-    </main>
+    </PageShell>
   );
 }

@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useOptionalAuth } from "../auth";
-import type { FieldValidation, Outlet, OutletValidation } from "../types";
-import { Button, Field, Textarea } from "../components/ui";
+import { Button, Field, Sheet, Textarea } from "../components/ui";
 import { haversineKm } from "../lib/geo";
 import { asString } from "../lib/utils";
 import { useOutletStore } from "../store";
+import type { FieldValidation, Outlet, OutletValidation } from "../types";
 
 const outletStatuses = ["Valid", "Needs Update", "Invalid", "Duplicate", "Could Not Verify"] as const;
 const fieldStatuses = ["Valid", "Invalid", "Not Sure"] as const;
@@ -17,24 +17,38 @@ function normalizeOutletStatus(status: string): OutletValidation["status"] {
   return (status === "Invalid Lead" ? "Invalid" : status) as OutletValidation["status"];
 }
 
-export function Step8OutletReview({ outlet, onSync }: { outlet: Outlet; onSync: (outletKey: string, validation: OutletValidation) => Promise<void> }) {
+function makeDraft(existing: OutletValidation | undefined, reviewerName: string): OutletValidation {
+  return existing
+    ? { ...existing, status: normalizeOutletStatus(existing.status) }
+    : {
+        status: "",
+        generalComments: "",
+        validatedBy: reviewerName,
+        validatedAt: "",
+        fields: {}
+      };
+}
+
+export function Step8OutletReview({
+  outlet,
+  onSync,
+  nextOutletKey = null
+}: {
+  outlet: Outlet;
+  onSync: (outletKey: string, validation: OutletValidation) => Promise<void>;
+  nextOutletKey?: string | null;
+}) {
   const state = useOutletStore();
   const auth = useOptionalAuth();
   const reviewerName = auth?.user?.name ?? state.reviewerName;
   const reviewerId = auth?.user?.id;
   const existing = state.validations[outlet.outletKey];
-  const [draft, setDraft] = useState<OutletValidation>(
-    existing
-      ? { ...existing, status: normalizeOutletStatus(existing.status) }
-      : {
-          status: "",
-          generalComments: "",
-          validatedBy: reviewerName,
-          validatedAt: "",
-          fields: {}
-        }
-  );
+  const [draft, setDraft] = useState<OutletValidation>(() => makeDraft(existing, reviewerName));
   const displayName = useMemo(() => (state.confirmedMapping.displayField ? asString(outlet.originalData[state.confirmedMapping.displayField]) : ""), [outlet, state.confirmedMapping.displayField]);
+
+  useEffect(() => {
+    setDraft(makeDraft(existing, reviewerName));
+  }, [existing, outlet.outletKey, reviewerName]);
 
   function updateField(field: string, patch: Partial<FieldValidation>) {
     setDraft((current) => ({
@@ -46,7 +60,7 @@ export function Step8OutletReview({ outlet, onSync }: { outlet: Outlet; onSync: 
     }));
   }
 
-  function save() {
+  function save(advance = false) {
     const gps = captureGpsEvidence(outlet, state.userLocation);
     const validation = {
       ...draft,
@@ -56,49 +70,52 @@ export function Step8OutletReview({ outlet, onSync }: { outlet: Outlet; onSync: 
       validatedAt: new Date().toISOString()
     };
     state.saveValidationLocal(outlet.outletKey, validation);
-    state.selectOutlet(null);
+    state.selectOutlet(advance && nextOutletKey ? nextOutletKey : null);
     void onSync(outlet.outletKey, validation);
   }
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-end bg-slate-950/40 p-0 sm:items-center sm:p-4">
-      <section className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-4 shadow-xl sm:mx-auto sm:max-w-3xl sm:rounded-2xl">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold text-slate-950">{displayName || outlet.id}</h2>
-            <p className="text-sm text-slate-500">
-              ID {outlet.id} · {outlet.latitude}, {outlet.longitude}
-              {outlet.distanceKm !== null ? ` · ${outlet.distanceKm.toFixed(2)} km` : ""}
+    <Sheet open className="grid overflow-hidden p-0">
+      <div className="sticky top-0 z-10 border-b bg-white/95 p-4 backdrop-blur">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="truncate text-xl font-bold text-foreground">{displayName || outlet.id}</h2>
+            <p className="text-sm text-muted-foreground">
+              ID {outlet.id} - {outlet.latitude}, {outlet.longitude}
+              {outlet.distanceKm !== null ? ` - ${outlet.distanceKm.toFixed(2)} km` : ""}
             </p>
           </div>
           <Button variant="ghost" onClick={() => state.selectOutlet(null)}>
             Close
           </Button>
         </div>
-        <div className="grid gap-4">
+      </div>
+
+      <div className="max-h-[calc(92dvh-9rem)] overflow-y-auto p-4 pb-28">
+        <div className="grid gap-5">
           <StatusButtonGroup label="Outlet status" options={outletStatuses} value={draft.status} onChange={(status) => setDraft({ ...draft, status: status as OutletValidation["status"] })} />
 
           <div className="grid gap-2">
-            <h3 className="font-semibold text-slate-900">Visible fields</h3>
+            <h3 className="font-semibold text-foreground">Visible fields</h3>
             {state.visibleFields.map((field) => (
-              <div key={field} className="rounded-md border border-slate-200 p-3 text-sm">
-                <div className="font-medium text-slate-600">{field}</div>
-                <div className="mt-1 break-words text-slate-950">{asString(outlet.originalData[field]) || "-"}</div>
+              <div key={field} className="rounded-md border bg-background p-3 text-sm">
+                <div className="font-medium text-muted-foreground">{field}</div>
+                <div className="mt-1 break-words text-foreground">{asString(outlet.originalData[field]) || "-"}</div>
               </div>
             ))}
           </div>
 
           {state.fieldsToVerify.length ? (
             <div className="grid gap-3">
-              <h3 className="font-semibold text-slate-900">Field validation</h3>
+              <h3 className="font-semibold text-foreground">Field validation</h3>
               {state.fieldsToVerify.map((field) => {
                 const fieldDraft = draft.fields[field] ?? emptyFieldValidation();
                 const needsDetail = fieldDraft.status === "Invalid" || fieldDraft.status === "Not Sure";
                 return (
-                  <div key={field} className="grid gap-3 rounded-md border border-slate-200 p-3">
+                  <div key={field} className="grid gap-3 rounded-md border bg-background p-3">
                     <div>
-                      <div className="font-medium text-slate-600">{field}</div>
-                      <div className="text-sm text-slate-950">{asString(outlet.originalData[field]) || "-"}</div>
+                      <div className="font-medium text-muted-foreground">{field}</div>
+                      <div className="text-sm text-foreground">{asString(outlet.originalData[field]) || "-"}</div>
                     </div>
                     <StatusButtonGroup label="Status" options={fieldStatuses} value={fieldDraft.status} onChange={(status) => updateField(field, { status: status as FieldValidation["status"] })} />
                     {needsDetail ? (
@@ -120,12 +137,20 @@ export function Step8OutletReview({ outlet, onSync }: { outlet: Outlet; onSync: 
           <Field label="General comments">
             <Textarea value={draft.generalComments} onChange={(event) => setDraft({ ...draft, generalComments: event.target.value })} />
           </Field>
-          <Button disabled={!draft.status} onClick={save}>
-            Save Review
-          </Button>
         </div>
-      </section>
-    </div>
+      </div>
+
+      <div className="sticky bottom-0 z-10 grid gap-2 border-t bg-white/95 p-4 backdrop-blur sm:grid-cols-2">
+        {nextOutletKey ? (
+          <Button disabled={!draft.status} onClick={() => save(true)}>
+            Save & Next
+          </Button>
+        ) : null}
+        <Button variant={nextOutletKey ? "outline" : "primary"} disabled={!draft.status} onClick={() => save(false)}>
+          Save Review
+        </Button>
+      </div>
+    </Sheet>
   );
 }
 
@@ -143,7 +168,7 @@ function captureGpsEvidence(outlet: Outlet, location: { latitude: number; longit
 
 function StatusButtonGroup({ label, options, value, onChange }: { label: string; options: readonly string[]; value: string; onChange: (value: string) => void }) {
   return (
-    <div className="grid gap-1.5 text-sm font-medium text-slate-700">
+    <div className="grid gap-1.5 text-sm font-medium text-foreground">
       <div>{label}</div>
       <div role="group" aria-label={label} className="flex flex-wrap gap-2">
         {options.map((option) => {
@@ -153,8 +178,8 @@ function StatusButtonGroup({ label, options, value, onChange }: { label: string;
               key={option}
               type="button"
               aria-pressed={selected}
-              className={`min-h-11 rounded-md border px-3 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-coke focus:ring-offset-2 ${
-                selected ? "border-coke bg-coke text-white" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+              className={`min-h-10 rounded-md border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                selected ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background text-foreground hover:bg-accent"
               }`}
               onClick={() => onChange(option)}
             >

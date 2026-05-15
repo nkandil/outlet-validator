@@ -2,12 +2,12 @@ import L from "leaflet";
 import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
 import iconUrl from "leaflet/dist/images/marker-icon.png";
 import shadowUrl from "leaflet/dist/images/marker-shadow.png";
-import { Download, LocateFixed, MapPin, RefreshCw, Search } from "lucide-react";
+import { AlertTriangle, Download, LocateFixed, MapPin, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
 import { MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import { canManageSessions, useAuth } from "../auth";
 import { MapLegend } from "../components/MapLegend";
-import { Badge, Button, Input, Panel, Select } from "../components/ui";
+import { Alert, Badge, Button, Input, Panel, Select, Sheet, TabButton, Tabs } from "../components/ui";
 import { sessionsApi } from "../lib/api";
 import { exportValidatedWorkbook } from "../lib/excel";
 import { nearbySorted } from "../lib/geo";
@@ -25,6 +25,7 @@ L.Icon.Default.mergeOptions({ iconRetinaUrl, iconUrl, shadowUrl });
 type Filter = "all" | "reviewed" | "unreviewed";
 type OutletLimit = 25 | 50 | 100 | 200 | "all";
 const outletLimitOptions: OutletLimit[] = [25, 50, 100, 200, "all"];
+const statusFilters: Filter[] = ["all", "unreviewed", "reviewed"];
 
 export function Step7MapView() {
   const sessionId = useOutletStore((state) => state.sessionId);
@@ -44,11 +45,13 @@ export function Step7MapView() {
   const selectOutlet = useOutletStore((state) => state.selectOutlet);
 
   const [tab, setTab] = useState<"list" | "map">("list");
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>("unreviewed");
   const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [manualLat, setManualLat] = useState("");
   const [manualLng, setManualLng] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [locationWatching, setLocationWatching] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [radiusDraft, setRadiusDraft] = useState(String(radiusKm));
@@ -56,6 +59,7 @@ export function Step7MapView() {
   const { user } = useAuth();
   const canManage = canManageSessions(user);
   const watchIdRef = useRef<number | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const lastSavedRadiusRef = useRef(radiusKm);
 
   async function refreshPendingSyncCount() {
@@ -108,7 +112,7 @@ export function Step7MapView() {
       updatePosition,
       () => {
         setLocationWatching(false);
-        setLocationError("Location permission denied or unavailable. Enter coordinates manually.");
+        setLocationError("Location permission denied or unavailable.");
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 12000 }
     );
@@ -171,8 +175,18 @@ export function Step7MapView() {
   const limitedOutlets = useMemo(() => (outletLimit === "all" ? filtered : filtered.slice(0, outletLimit)), [filtered, outletLimit]);
   const mapOutlets = useMemo(() => getMapOutlets(limitedOutlets, outletLimit), [limitedOutlets, outletLimit]);
   const selectedOutlet = selectedOutletKey ? nearby.find((outlet) => outlet.outletKey === selectedOutletKey) : null;
+  const nextOutletKey = useMemo(() => {
+    if (!selectedOutletKey) return null;
+    const selectedIndex = limitedOutlets.findIndex((outlet) => outlet.outletKey === selectedOutletKey);
+    const ordered = selectedIndex >= 0 ? [...limitedOutlets.slice(selectedIndex + 1), ...limitedOutlets.slice(0, selectedIndex)] : limitedOutlets;
+    return ordered.find((outlet) => !validations[outlet.outletKey]?.status)?.outletKey ?? null;
+  }, [limitedOutlets, selectedOutletKey, validations]);
   const reviewedCount = Object.values(validations).filter((validation) => validation.status).length;
   const center: [number, number] = userLocation ? [userLocation.latitude, userLocation.longitude] : filtered[0] ? [filtered[0].latitude, filtered[0].longitude] : [30.0444, 31.2357];
+
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
 
   function setManualLocation() {
     const latitude = Number(manualLat);
@@ -180,6 +194,7 @@ export function Step7MapView() {
     if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
       setUserLocation({ latitude, longitude });
       setLocationError("");
+      setSettingsOpen(false);
     }
   }
 
@@ -198,10 +213,17 @@ export function Step7MapView() {
     if (Number.isFinite(nextRadius) && nextRadius > 0) setRadiusKm(nextRadius);
   }
 
+  function toggleSearch() {
+    setSearchOpen((open) => {
+      if (open) setQuery("");
+      return !open;
+    });
+  }
+
   return (
-    <main className="flex flex-1 flex-col overflow-hidden bg-slate-50">
-      <div className="border-b border-slate-200 bg-white px-4 py-3">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
+    <main className="flex flex-1 flex-col overflow-hidden bg-background">
+      <div className="border-b bg-card px-4 py-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2">
           <div className="flex flex-wrap gap-2">
             <Badge tone="success">{reviewedCount} reviewed</Badge>
             <Badge>{Math.max(outlets.length - reviewedCount, 0)} unreviewed</Badge>
@@ -209,21 +231,121 @@ export function Step7MapView() {
             {pendingSyncCount ? <Badge tone="warning">{pendingSyncCount} pending</Badge> : null}
             <Badge tone={syncState === "failed" ? "warning" : syncState === "synced" ? "success" : "neutral"}>{syncState.replace("-", " ")}</Badge>
           </div>
-          <div className="flex flex-wrap gap-2">
+        </div>
+      </div>
+
+      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-3 p-3 sm:p-4">
+        <div className="grid gap-2">
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+          <Tabs className="w-full justify-between sm:w-auto">
+            {(["list", "map"] as const).map((item) => (
+              <TabButton key={item} active={tab === item} className="flex-1 capitalize sm:flex-none" onClick={() => setTab(item)}>
+                {item}
+              </TabButton>
+            ))}
+          </Tabs>
+          <div className="flex gap-2">
+            <Button variant={locationError ? "outline" : "secondary"} className="relative min-h-10 w-10 px-0" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
+              <SlidersHorizontal size={18} />
+              {locationError ? <AlertTriangle className="absolute -right-1 -top-1 text-amber-600" size={14} aria-hidden="true" /> : null}
+            </Button>
+            <Button variant={searchOpen ? "outline" : "secondary"} className="min-h-10 w-10 px-0" aria-label={searchOpen ? "Hide search" : "Search"} onClick={toggleSearch}>
+              {searchOpen ? <X size={18} /> : <Search size={18} />}
+            </Button>
+          </div>
+          </div>
+          {searchOpen ? (
+            <label className="relative block">
+              <Search className="pointer-events-none absolute left-3 top-2.5 text-muted-foreground" size={18} />
+              <Input ref={searchInputRef} className="pl-10 pr-10" placeholder="Search ID, display, or visible fields" value={query} onChange={(event) => setQuery(event.target.value)} />
+              {query ? (
+                <button className="absolute right-2 top-1.5 inline-flex min-h-7 min-w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground" type="button" aria-label="Clear search" onClick={() => setQuery("")}>
+                  <X size={16} />
+                </button>
+              ) : null}
+            </label>
+          ) : null}
+        </div>
+
+        {tab === "list" ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="grid gap-2 pb-4">
+              {limitedOutlets.length ? limitedOutlets.map((outlet) => <OutletCard key={outlet.outletKey} outlet={outlet} />) : <Panel>No nearby outlets match the current filters.</Panel>}
+            </div>
+          </div>
+        ) : (
+          <div className="relative min-h-80 flex-1 overflow-hidden rounded-lg border bg-card">
+            <MapContainer center={center} zoom={14} className="h-full w-full">
+              <MapCenterUpdater center={center} />
+              <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              {userLocation ? (
+                <Marker position={[userLocation.latitude, userLocation.longitude]} title="Your location">
+                  <Popup>Your location</Popup>
+                </Marker>
+              ) : null}
+              {mapOutlets.map((outlet) => {
+                const validation = validations[outlet.outletKey];
+                return (
+                  <Marker
+                    key={outlet.outletKey}
+                    position={[outlet.latitude, outlet.longitude]}
+                    icon={makeOutletIcon(markerColor(outlet, confirmedMapping, validation), markerShape(outlet, confirmedMapping))}
+                    title={displayName(outlet, confirmedMapping.displayField) || outlet.id}
+                  >
+                    <Popup>
+                      <div className="grid min-w-44 gap-2">
+                        <strong>{displayName(outlet, confirmedMapping.displayField) || outlet.id}</strong>
+                        <span>{outlet.distanceKm !== null ? `${outlet.distanceKm.toFixed(2)} km away` : "Distance unavailable"}</span>
+                        {visibleFields.length ? (
+                          <div className="grid gap-1 border-t border-slate-200 pt-2 text-xs text-slate-700">
+                            {visibleFields.map((field) => (
+                              <div key={field} className="break-words">
+                                <span className="font-semibold">{field}: </span>
+                                {asString(outlet.originalData[field]) || "-"}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                        <button className="rounded bg-red-600 px-3 py-2 font-semibold text-white" onClick={() => selectOutlet(outlet.outletKey)}>
+                          Review
+                        </button>
+                        <a className="inline-flex min-h-9 items-center justify-center gap-1 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" href={getGoogleMapsUrl(outlet)} target="_blank" rel="noreferrer">
+                          <MapPin size={16} />
+                          Google Maps
+                        </a>
+                      </div>
+                    </Popup>
+                  </Marker>
+                );
+              })}
+            </MapContainer>
+            <MapLegend outlets={mapOutlets} validations={validations} mapping={confirmedMapping} />
+          </div>
+        )}
+        {filtered.length > limitedOutlets.length ? <div className="text-xs text-muted-foreground">Showing the nearest {limitedOutlets.length} of {filtered.length} matching outlets.</div> : null}
+      </div>
+
+      <Sheet open={settingsOpen} className="p-4 sm:max-w-lg">
+        <div className="grid gap-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-foreground">Field settings</h2>
+              <p className="text-sm text-muted-foreground">Adjust location, export, sync, and outlet range controls.</p>
+            </div>
+            <Button variant="ghost" className="min-h-9 px-2" aria-label="Close settings" onClick={() => setSettingsOpen(false)}>
+              <X size={18} />
+            </Button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
             {canManage ? (
-              <label className="grid gap-1 text-xs font-semibold text-slate-500">
-                <span className="sr-only">Nearby radius</span>
-                <Input className="w-28" aria-label="Nearby radius" type="number" min={0.1} step={0.1} value={radiusDraft} onChange={(event) => updateRadius(event.target.value)} />
+              <label className="grid gap-1.5 text-sm font-medium text-foreground">
+                Nearby radius
+                <Input aria-label="Nearby radius" type="number" min={0.1} step={0.1} value={radiusDraft} onChange={(event) => updateRadius(event.target.value)} />
               </label>
             ) : null}
-            <label className="grid gap-1 text-xs font-semibold text-slate-500">
-              <span className="sr-only">Show nearest</span>
-              <Select
-                aria-label="Show nearest"
-                className="w-36"
-                value={String(outletLimit)}
-                onChange={(event) => setOutletLimit(event.target.value === "all" ? "all" : (Number(event.target.value) as OutletLimit))}
-              >
+            <label className="grid gap-1.5 text-sm font-medium text-foreground">
+              Show nearest
+              <Select aria-label="Show nearest" value={String(outletLimit)} onChange={(event) => setOutletLimit(event.target.value === "all" ? "all" : (Number(event.target.value) as OutletLimit))}>
                 {outletLimitOptions.map((option) => (
                   <option key={option} value={option}>
                     {option === "all" ? "All outlets" : `Nearest ${option}`}
@@ -231,6 +353,18 @@ export function Step7MapView() {
                 ))}
               </Select>
             </label>
+          </div>
+          <div aria-label="Review status" className="grid gap-2">
+            <div className="text-sm font-medium text-foreground">Review status</div>
+            <Tabs className="w-full">
+              {statusFilters.map((item) => (
+                <TabButton key={item} active={filter === item} className="flex-1" onClick={() => setFilter(item)}>
+                  {filterLabel(item)}
+                </TabButton>
+              ))}
+            </Tabs>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
             <Button variant="secondary" onClick={requestLocation}>
               <LocateFixed size={18} />
               {locationWatching ? "Live Location" : "Location"}
@@ -244,115 +378,39 @@ export function Step7MapView() {
               Retry Sync
             </Button>
           </div>
-        </div>
-      </div>
-
-      {locationError ? (
-        <div className="border-b border-amber-200 bg-amber-50 px-4 py-3">
-          <div className="mx-auto grid max-w-6xl gap-2 sm:grid-cols-[1fr_9rem_9rem_auto]">
-            <div className="text-sm font-medium text-amber-900">{locationError}</div>
-            <Input placeholder="Latitude" value={manualLat} onChange={(event) => setManualLat(event.target.value)} />
-            <Input placeholder="Longitude" value={manualLng} onChange={(event) => setManualLng(event.target.value)} />
-            <Button variant="secondary" onClick={setManualLocation}>
-              Use
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-3 p-4">
-        <div className="grid gap-2 sm:grid-cols-[auto_auto_1fr]">
-          <div className="flex rounded-md border border-slate-200 bg-white p-1">
-            {(["list", "map"] as const).map((item) => (
-              <button key={item} className={`min-h-10 rounded px-4 text-sm font-semibold capitalize ${tab === item ? "bg-slate-900 text-white" : "text-slate-600"}`} onClick={() => setTab(item)}>
-                {item}
-              </button>
-            ))}
-          </div>
-          <div className="flex rounded-md border border-slate-200 bg-white p-1">
-            {(["all", "unreviewed", "reviewed"] as Filter[]).map((item) => (
-              <button key={item} className={`min-h-10 rounded px-3 text-sm font-semibold capitalize ${filter === item ? "bg-coke text-white" : "text-slate-600"}`} onClick={() => setFilter(item)}>
-                {item}
-              </button>
-            ))}
-          </div>
-          <label className="relative block">
-            <Search className="pointer-events-none absolute left-3 top-3 text-slate-400" size={18} />
-            <Input className="pl-10" placeholder="Search ID, display, or visible fields" value={query} onChange={(event) => setQuery(event.target.value)} />
-          </label>
-        </div>
-
-        {tab === "list" ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="grid gap-3 pb-4">
-              {limitedOutlets.length ? limitedOutlets.map((outlet) => <OutletCard key={outlet.outletKey} outlet={outlet} />) : <Panel>No nearby outlets match the current filters.</Panel>}
+          {locationError ? <Alert tone="warning">{locationError}</Alert> : null}
+          <div className="grid gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Manual location</h3>
+              <p className="text-xs text-muted-foreground">Use coordinates when GPS permission is denied or unavailable.</p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input placeholder="Latitude" value={manualLat} onChange={(event) => setManualLat(event.target.value)} />
+              <Input placeholder="Longitude" value={manualLng} onChange={(event) => setManualLng(event.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" onClick={() => setSettingsOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={setManualLocation}>Use</Button>
             </div>
           </div>
-        ) : (
-          <>
-            <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-slate-200 bg-white">
-              <MapContainer center={center} zoom={14} className="h-full w-full">
-                <MapCenterUpdater center={center} />
-                <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                {userLocation ? (
-                  <Marker position={[userLocation.latitude, userLocation.longitude]}>
-                    <Popup>Your location</Popup>
-                  </Marker>
-                ) : null}
-                {mapOutlets.map((outlet) => {
-                  const validation = validations[outlet.outletKey];
-                  return (
-                    <Marker
-                      key={outlet.outletKey}
-                      position={[outlet.latitude, outlet.longitude]}
-                      icon={makeOutletIcon(markerColor(outlet, confirmedMapping, validation), markerShape(outlet, confirmedMapping))}
-                    >
-                      <Popup>
-                        <div className="grid min-w-44 gap-2">
-                          <strong>{displayName(outlet, confirmedMapping.displayField) || outlet.id}</strong>
-                          <span>{outlet.distanceKm !== null ? `${outlet.distanceKm.toFixed(2)} km away` : "Distance unavailable"}</span>
-                          {visibleFields.length ? (
-                            <div className="grid gap-1 border-t border-slate-200 pt-2 text-xs text-slate-700">
-                              {visibleFields.map((field) => (
-                                <div key={field} className="break-words">
-                                  <span className="font-semibold">{field}: </span>
-                                  {asString(outlet.originalData[field]) || "-"}
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-                          <button className="rounded bg-red-600 px-3 py-2 font-semibold text-white" onClick={() => selectOutlet(outlet.outletKey)}>
-                            Review
-                          </button>
-                          <a
-                            className="inline-flex min-h-9 items-center justify-center gap-1 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
-                            href={getGoogleMapsUrl(outlet)}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            <MapPin size={16} />
-                            Google Maps
-                          </a>
-                        </div>
-                      </Popup>
-                    </Marker>
-                  );
-                })}
-              </MapContainer>
-              <MapLegend outlets={mapOutlets} validations={validations} mapping={confirmedMapping} />
-            </div>
-          </>
-        )}
-        {filtered.length > limitedOutlets.length ? <div className="text-xs text-slate-500">Showing the nearest {limitedOutlets.length} of {filtered.length} matching outlets.</div> : null}
-      </div>
+        </div>
+      </Sheet>
 
-      {selectedOutlet ? <Step8OutletReview outlet={selectedOutlet} onSync={syncValidation} /> : null}
+      {selectedOutlet ? <Step8OutletReview outlet={selectedOutlet} onSync={syncValidation} nextOutletKey={nextOutletKey} /> : null}
     </main>
   );
 }
 
 function displayName(outlet: Outlet, field: string) {
   return field ? asString(outlet.originalData[field]) : "";
+}
+
+function filterLabel(filter: Filter) {
+  if (filter === "all") return "All";
+  if (filter === "unreviewed") return "Unreviewed";
+  return "Reviewed";
 }
 
 function MapCenterUpdater({ center }: { center: [number, number] }) {
@@ -383,36 +441,36 @@ function OutletCard({ outlet }: { outlet: Outlet }) {
   }
 
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-coke">
+    <article className="rounded-lg border bg-card p-3 text-left shadow-sm transition hover:border-primary/50 sm:p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate text-lg font-bold text-slate-950">{title}</div>
-          <div className="text-sm text-slate-500">
+          <div className="truncate text-base font-bold text-foreground sm:text-lg">{title}</div>
+          <div className="text-sm text-muted-foreground">
             ID {outlet.id}
-            {outlet.distanceKm !== null ? ` · ${outlet.distanceKm.toFixed(2)} km` : ""}
+            {outlet.distanceKm !== null ? ` - ${outlet.distanceKm.toFixed(2)} km` : ""}
           </div>
         </div>
         <Badge tone={status ? "success" : "neutral"}>{status || "Unreviewed"}</Badge>
       </div>
-      <div className="mt-3 grid gap-1 text-sm text-slate-600 sm:grid-cols-2">
-        {visibleFields.slice(0, 6).map((field) => (
+      <div className="mt-3 grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
+        {visibleFields.slice(0, 4).map((field) => (
           <div key={field} className="truncate">
-            <span className="font-medium">{field}: </span>
+            <span className="font-medium text-foreground">{field}: </span>
             {asString(outlet.originalData[field]) || "-"}
           </div>
         ))}
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         <Button onClick={openReview}>Review</Button>
         <a
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-coke focus:ring-offset-2"
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-semibold text-foreground shadow-sm transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           href={getGoogleMapsUrl(outlet)}
           target="_blank"
           rel="noreferrer"
           onClick={stopCardAction}
         >
           <MapPin size={18} />
-          Google Maps
+          <span className="sr-only sm:not-sr-only">Google Maps</span>
         </a>
       </div>
     </article>

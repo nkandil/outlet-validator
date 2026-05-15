@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../auth";
-import { Button, Panel } from "../components/ui";
+import { Alert, Button, Panel } from "../components/ui";
 import { sessionsApi } from "../lib/api";
 import { useOutletStore } from "../store";
 
@@ -44,7 +44,7 @@ export function Step6ReviewerName() {
           <h2 className="text-2xl font-bold text-slate-950">Reviewer</h2>
           <p className="mt-1 text-sm text-slate-500">{user ? `${user.name} (${user.email})` : "Signed-in user"}</p>
         </div>
-        {warning ? <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">{warning}</div> : null}
+        {warning ? <Alert tone="warning">{warning}</Alert> : null}
         <div className="flex justify-between">
           <Button variant="secondary" onClick={() => state.setStep(5)}>
             Back

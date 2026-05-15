@@ -48,7 +48,7 @@ export default function App() {
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <main className="grid min-h-[100dvh] place-items-center bg-slate-50 text-slate-600">Loading...</main>;
+  if (loading) return <main className="grid min-h-[100dvh] place-items-center bg-background text-muted-foreground">Loading...</main>;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }

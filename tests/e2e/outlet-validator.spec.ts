@@ -8,6 +8,13 @@ async function mockAuth(page, role: "admin" | "coordinator" | "reviewer" = "admi
       body: JSON.stringify({ id: `${role}-id`, name: "Test User", email: `${role}@example.com`, role })
     });
   });
+  await page.route("**/api/sessions", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([])
+    });
+  });
   await page.addInitScript(() => {
     localStorage.setItem("outlet-validator-auth-token", "test-token");
   });
@@ -47,7 +54,9 @@ function localSessionState(outletCount = 80) {
       distanceKm: index / 100
     })),
     userLocation: { latitude: 30, longitude: 31 },
-    validations: {},
+    validations: {
+      "O-0__row_0": { status: "Valid", reviewedBy: "Tester", reviewedAt: new Date().toISOString(), notes: "", fieldUpdates: {} }
+    },
     pendingSync: true,
     sheetNames: [],
     selectedSheet: "",
@@ -80,10 +89,20 @@ test("local session opens map and caps outlet markers to nearest 50", async ({ p
   await page.reload();
 
   await page.getByText(/Local unsynced session/i).click();
+  await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Search" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Valid" })).not.toBeVisible();
+  await page.getByRole("button", { name: "Settings" }).click();
+  await expect(page.getByRole("heading", { name: "Field settings" })).toBeVisible();
+  await expect(page.getByLabel("Nearby radius")).toBeVisible();
+  await expect(page.getByLabel("Show nearest")).toBeVisible();
+  await expect(page.getByLabel("Review status").getByRole("button", { name: "Unreviewed" })).toBeVisible();
+  await expect(page.getByPlaceholder("Latitude")).toBeVisible();
+  await page.getByRole("button", { name: "Close settings" }).click();
   await page.getByRole("button", { name: "map" }).click();
 
   await expect(page.locator(".leaflet-container")).toBeVisible();
-  await expect(page.getByText("Showing the nearest 50 of 80 matching outlets on the map.")).toBeVisible();
+  await expect(page.getByText("Showing the nearest 50 of 79 matching outlets.")).toBeVisible();
   await expect(page.locator(".leaflet-marker-icon")).toHaveCount(51);
   expect(pageErrors).toEqual([]);
 });
@@ -95,17 +114,19 @@ test("map marker popup shows visible fields and Google Maps action", async ({ pa
   await mockAuth(page);
   await page.goto("/");
   await page.evaluate((state) => {
-    localStorage.setItem("outlet-validator-session", JSON.stringify({ state, version: 0 }));
+    localStorage.setItem("outlet-validator-session", JSON.stringify({ state: { ...state, userLocation: null }, version: 0 }));
   }, localSessionState());
   await page.reload();
 
   await page.getByText(/Local unsynced session/i).click();
   await page.getByRole("button", { name: "map" }).click();
   await expect(page.locator(".leaflet-container")).toBeVisible();
-  await page.locator(".leaflet-marker-icon").nth(1).click();
+  await page.locator('.leaflet-marker-icon[title="Outlet 30"]').evaluate((element) => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  });
 
-  await expect(page.locator(".leaflet-popup").getByText("name: Outlet 0")).toBeVisible();
-  await expect(page.locator(".leaflet-popup").getByRole("link", { name: "Google Maps" })).toHaveAttribute("href", "https://www.google.com/maps/search/?api=1&query=30%2C31");
+  await expect(page.locator(".leaflet-popup").getByText("name: Outlet 30")).toBeVisible();
+  await expect(page.locator(".leaflet-popup").getByRole("link", { name: "Google Maps" })).toHaveAttribute("href", "https://www.google.com/maps/search/?api=1&query=30.003%2C31");
   expect(pageErrors).toEqual([]);
 });
 

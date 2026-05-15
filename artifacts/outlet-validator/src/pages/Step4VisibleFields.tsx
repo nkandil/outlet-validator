@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { Button, Panel } from "../components/ui";
+import { Button, Checkbox, Panel } from "../components/ui";
 import { useOutletStore } from "../store";
 
 export function Step4VisibleFields() {
@@ -33,8 +33,8 @@ export function Step4VisibleFields() {
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           {available.map((field) => (
-            <label key={field} className="flex min-h-11 items-center gap-3 rounded-md border border-slate-200 p-3 text-sm font-medium">
-              <input type="checkbox" checked={selected.has(field)} onChange={() => toggle(field)} />
+            <label key={field} className="flex min-h-11 items-center gap-3 rounded-md border bg-card p-3 text-sm font-medium">
+              <Checkbox checked={selected.has(field)} onChange={() => toggle(field)} />
               {field}
             </label>
           ))}

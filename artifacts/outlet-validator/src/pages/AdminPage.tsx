@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { canAdminister, useAuth } from "../auth";
 import { ShapePicker } from "../components/ShapePicker";
-import { Badge, Button, Field, Input, Panel, Select, Textarea } from "../components/ui";
+import { Alert, Badge, Button, Field, Input, PageHeader, PageShell, Panel, Select, TabButton as UiTabButton, Tabs, Textarea } from "../components/ui";
 import { groupsApi, sessionsApi, usersApi } from "../lib/api";
 import { pinShapes } from "../lib/pins";
 import type { AuthUser, Outlet, SessionConfig, SessionDetail, SessionSummary, UserGroup, UserRole } from "../types";
@@ -48,54 +48,46 @@ export function AdminPage() {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-slate-50 px-4 py-6">
+    <PageShell>
       <div className="mx-auto grid max-w-7xl gap-4">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-extrabold text-slate-950">Admin</h1>
-            <p className="text-sm text-slate-500">{user?.name}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900" to="/">
+        <PageHeader
+          title="Admin"
+          description={user?.name}
+          actions={
+            <>
+            <Link className="inline-flex min-h-10 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-semibold shadow-sm hover:bg-accent" to="/">
               Sessions
             </Link>
-            <Link className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900" to="/dashboard">
+            <Link className="inline-flex min-h-10 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-semibold shadow-sm hover:bg-accent" to="/dashboard">
               Dashboard
             </Link>
             <Button variant="ghost" onClick={logout}>
               Logout
             </Button>
-          </div>
-        </header>
+            </>
+          }
+        />
 
-        <div className="flex flex-wrap gap-2 border-b border-slate-200">
-          <TabButton active={tab === "users"} onClick={() => setTab("users")}>
+        <Tabs className="w-full overflow-x-auto sm:w-fit">
+          <UiTabButton active={tab === "users"} onClick={() => setTab("users")}>
             Users
-          </TabButton>
-          <TabButton active={tab === "groups"} onClick={() => setTab("groups")}>
+          </UiTabButton>
+          <UiTabButton active={tab === "groups"} onClick={() => setTab("groups")}>
             Groups
-          </TabButton>
-          <TabButton active={tab === "sessions"} onClick={() => setTab("sessions")}>
+          </UiTabButton>
+          <UiTabButton active={tab === "sessions"} onClick={() => setTab("sessions")}>
             Sessions
-          </TabButton>
-        </div>
+          </UiTabButton>
+        </Tabs>
 
-        {error ? <Panel className="border-red-200 bg-red-50 text-sm text-red-700">{error}</Panel> : null}
-        {message ? <Panel className="border-green-200 bg-green-50 text-sm text-green-700">{message}</Panel> : null}
+        {error ? <Alert tone="danger">{error}</Alert> : null}
+        {message ? <Alert tone="success">{message}</Alert> : null}
 
         {tab === "users" ? <UsersTab users={users} currentUserId={user?.id ?? ""} onChanged={async (text) => { notify(text); await load(); }} /> : null}
         {tab === "groups" ? <GroupsTab users={users} groups={groups} onChanged={async () => { notify("Groups updated"); await load(); }} /> : null}
         {tab === "sessions" ? <SessionsTab users={users} groups={groups} sessions={sessions} onChanged={async () => { notify("Session updated"); await load(); }} /> : null}
       </div>
-    </main>
-  );
-}
-
-function TabButton({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) {
-  return (
-    <button className={`min-h-11 border-b-2 px-4 text-sm font-semibold ${active ? "border-coke text-coke" : "border-transparent text-slate-600 hover:text-slate-950"}`} onClick={onClick}>
-      {children}
-    </button>
+    </PageShell>
   );
 }
 

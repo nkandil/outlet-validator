@@ -1,6 +1,6 @@
 import { Upload } from "lucide-react";
 import { useState } from "react";
-import { Button, Panel, Select } from "../components/ui";
+import { Alert, Button, Panel, Select } from "../components/ui";
 import { parseOutletFile, sheetToRows } from "../lib/file";
 import { useOutletStore } from "../store";
 
@@ -45,9 +45,9 @@ export function Step1Upload() {
           <span className="text-sm text-slate-500">.xlsx, .xls, or .csv</span>
           <input className="sr-only" type="file" accept=".xlsx,.xls,.csv" onChange={(event) => handleFile(event.target.files?.[0])} />
         </label>
-        {error ? <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+        {error ? <Alert tone="danger">{error}</Alert> : null}
         {fileName ? (
-          <div className="grid gap-3 rounded-md bg-slate-100 p-3 text-sm">
+          <div className="grid gap-3 rounded-md border bg-muted/50 p-3 text-sm">
             <div className="font-semibold text-slate-900">{fileName}</div>
             <div className="text-slate-600">{rawRows.length} loaded rows</div>
             {sheetNames.length > 1 ? (

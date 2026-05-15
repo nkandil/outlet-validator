@@ -30,15 +30,15 @@ export function MapLegend({ outlets, validations, mapping }: MapLegendProps) {
     : [{ label: "Outlet marker", shape: "circle" }];
 
   return (
-    <div className="absolute bottom-4 left-4 z-[500] grid w-[min(20rem,calc(100%-2rem))] justify-items-start gap-2 text-xs">
+    <div className="absolute bottom-3 left-3 z-[500] grid w-[min(20rem,calc(100%-1.5rem))] justify-items-start gap-2 text-xs">
       {open ? (
         <section
           aria-label="Map legend"
-          className="grid max-h-52 w-full gap-3 overflow-y-auto rounded-md border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur"
+          className="grid max-h-52 w-full gap-3 overflow-y-auto rounded-md border bg-card/95 p-3 shadow-lg backdrop-blur"
         >
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-bold text-slate-950">Legend</h3>
-            <span className="text-[11px] font-semibold uppercase tracking-normal text-slate-400">{outlets.length} shown</span>
+            <h3 className="text-sm font-bold text-foreground">Legend</h3>
+            <span className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">{outlets.length} shown</span>
           </div>
           <LegendGroup title={mapping.colorByField ? `Colors: ${mapping.colorByField}` : "Colors: review status"}>
             {colorItems.slice(0, 12).map((item) => (
@@ -61,7 +61,7 @@ export function MapLegend({ outlets, validations, mapping }: MapLegendProps) {
       <button
         type="button"
         aria-expanded={open}
-        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-coke focus:ring-offset-2"
+        className="rounded-md border border-input bg-background px-3 py-2 text-sm font-semibold text-foreground shadow-sm transition hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         onClick={() => setOpen((current) => !current)}
       >
         {open ? "Hide legend" : "Show legend"}
@@ -73,7 +73,7 @@ export function MapLegend({ outlets, validations, mapping }: MapLegendProps) {
 function LegendGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="grid gap-2">
-      <div className="font-semibold text-slate-900">{title}</div>
+      <div className="font-semibold text-foreground">{title}</div>
       <div className="grid gap-1.5 sm:grid-cols-2">{children}</div>
     </div>
   );

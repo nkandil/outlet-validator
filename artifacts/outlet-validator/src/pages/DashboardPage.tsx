@@ -2,7 +2,7 @@ import { RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { canAdminister, canManageSessions, useAuth } from "../auth";
-import { Badge, Button, Panel, Select } from "../components/ui";
+import { Alert, Badge, Button, PageHeader, PageShell, Panel, Select } from "../components/ui";
 import { dashboardApi, sessionsApi } from "../lib/api";
 import { getPendingValidationSyncItems } from "../lib/sync-queue";
 import type { DashboardMetrics, SessionSummary } from "../types";
@@ -49,19 +49,18 @@ export function DashboardPage() {
   }, [sessionId]);
 
   return (
-    <main className="min-h-[100dvh] bg-slate-50 px-4 py-6">
+    <PageShell>
       <div className="mx-auto grid max-w-6xl gap-4">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-extrabold text-slate-950">Dashboard</h1>
-            <p className="text-sm text-slate-500">{user?.name}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900" to="/">
+        <PageHeader
+          title="Dashboard"
+          description={user?.name}
+          actions={
+            <>
+            <Link className="inline-flex min-h-10 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-semibold shadow-sm hover:bg-accent" to="/">
               Sessions
             </Link>
             {canAdminister(user) ? (
-              <Link className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900" to="/admin">
+              <Link className="inline-flex min-h-10 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-semibold shadow-sm hover:bg-accent" to="/admin">
                 Admin
               </Link>
             ) : null}
@@ -72,8 +71,9 @@ export function DashboardPage() {
             <Button variant="ghost" onClick={logout}>
               Logout
             </Button>
-          </div>
-        </header>
+            </>
+          }
+        />
         <Panel>
           <div className="max-w-sm">
             <Select value={sessionId} onChange={(event) => setSessionId(event.target.value)}>
@@ -86,7 +86,7 @@ export function DashboardPage() {
             </Select>
           </div>
         </Panel>
-        {error ? <Panel className="border-red-200 bg-red-50 text-red-700">{error}</Panel> : null}
+        {error ? <Alert tone="danger">{error}</Alert> : null}
         <div className="grid gap-4">
           <div className="grid gap-3 md:grid-cols-4">
             <Kpi label="Sessions" value={metrics.totalSessions} detail={`${metrics.activeSessions} active`} />
@@ -101,7 +101,7 @@ export function DashboardPage() {
           </div>
         </div>
       </div>
-    </main>
+    </PageShell>
   );
 }
 
@@ -192,7 +192,7 @@ function SyncPanel({ pendingSyncCount, selectedSession }: { pendingSyncCount: nu
         <h2 className="text-lg font-bold text-slate-950">Sync status</h2>
         <p className="text-sm text-slate-500">{selectedSession ? selectedSession.name : "All sessions"}</p>
       </div>
-      <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+      <div className="rounded-md border bg-muted/50 p-4">
         <div className="text-3xl font-extrabold text-slate-950">{pendingSyncCount}</div>
         <div className="mt-1 text-sm font-semibold text-slate-600">pending sync items</div>
       </div>
