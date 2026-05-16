@@ -11,3 +11,4 @@ test-results/
 *.log
 artifacts/outlet-validator/.vite/
 artifacts/outlet-validator/dist/
+.opencode
