@@ -4,12 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useOutletStore } from "../store";
 import { Step7MapView } from "./Step7MapView";
 
+const setViewSpy = vi.hoisted(() => vi.fn());
+
 vi.mock("react-leaflet", () => ({
   MapContainer: ({ children }: { children: ReactNode }) => <div data-testid="map">{children}</div>,
   Marker: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Popup: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   TileLayer: () => <div />,
-  useMap: () => ({ getZoom: () => 14, setView: vi.fn() })
+  useMap: () => ({ getZoom: () => 14, setView: setViewSpy })
 }));
 
 vi.mock("../auth", async () => {
@@ -34,6 +36,7 @@ function makeOutlets(count: number) {
 
 describe("Step7MapView", () => {
   beforeEach(() => {
+    setViewSpy.mockClear();
     useOutletStore.getState().reset();
     useOutletStore.setState({
       currentStep: 7,
@@ -73,6 +76,8 @@ describe("Step7MapView", () => {
     expect(screen.queryByRole("button", { name: /rotate map/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Settings" }).textContent).toBe("");
     expect(screen.getByRole("button", { name: "Search" }).textContent).toBe("");
+    expect(screen.getByRole("button", { name: "list" }).parentElement).toHaveClass("shrink-0");
+    expect(screen.getByRole("button", { name: "list" }).parentElement).not.toHaveClass("w-full");
     expect(screen.queryByLabelText("Review filters")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Nearby radius")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Show nearest")).not.toBeInTheDocument();
@@ -141,5 +146,32 @@ describe("Step7MapView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hide search" }));
     expect(screen.queryByPlaceholderText("Search ID, display, or visible fields")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Review" })).toHaveLength(50);
+  });
+
+  it("lets reviewers disable automatic map recentering while location still updates", async () => {
+    useOutletStore.getState().setUserLocation({ latitude: 30, longitude: 31 });
+    render(<Step7MapView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "map" }));
+    const disableFollowButton = screen.getByRole("button", { name: "Disable follow location" });
+    expect(disableFollowButton).toBeInTheDocument();
+    expect(disableFollowButton).toHaveClass("w-10");
+    expect(disableFollowButton).toHaveTextContent("");
+    expect(setViewSpy).toHaveBeenCalledWith([30, 31], 14, { animate: true });
+
+    setViewSpy.mockClear();
+    fireEvent.click(disableFollowButton);
+    const enableFollowButton = screen.getByRole("button", { name: "Enable follow location" });
+    expect(enableFollowButton).toBeInTheDocument();
+    expect(enableFollowButton).toHaveClass("w-10");
+    expect(enableFollowButton).toHaveTextContent("");
+
+    useOutletStore.getState().setUserLocation({ latitude: 30.5, longitude: 31.5 });
+
+    await waitFor(() => expect(screen.getByText("Your location")).toBeInTheDocument());
+    expect(setViewSpy).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Enable follow location" }));
+    expect(setViewSpy).toHaveBeenCalledWith([30.5, 31.5], 14, { animate: true });
   });
 });

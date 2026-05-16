@@ -59,9 +59,9 @@ function OutletWizard() {
   if (currentStep === 0) return <Step0SessionPicker />;
 
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden">
+    <div className="flex h-[100dvh] flex-col overflow-hidden overscroll-none">
       <StepProgress />
-      <div className={currentStep === 7 ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "min-h-0 flex-1 overflow-y-auto"}>
+      <div className={currentStep === 7 ? "flex min-h-0 flex-1 flex-col overflow-hidden overscroll-contain" : "min-h-0 flex-1 overflow-y-auto overscroll-contain"}>
         {currentStep === 1 ? <Step1Upload /> : null}
         {currentStep === 2 ? <Step2Detect /> : null}
         {currentStep === 3 ? <Step3MapFields /> : null}

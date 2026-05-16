@@ -2,7 +2,7 @@ import L from "leaflet";
 import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
 import iconUrl from "leaflet/dist/images/marker-icon.png";
 import shadowUrl from "leaflet/dist/images/marker-shadow.png";
-import { AlertTriangle, Download, LocateFixed, MapPin, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
+import { AlertTriangle, Download, LocateFixed, LocateOff, MapPin, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
 import { MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import { canManageSessions, useAuth } from "../auth";
@@ -53,6 +53,7 @@ export function Step7MapView() {
   const [manualLng, setManualLng] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [locationWatching, setLocationWatching] = useState(false);
+  const [followLocation, setFollowLocation] = useState(true);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [radiusDraft, setRadiusDraft] = useState(String(radiusKm));
   const [outletLimit, setOutletLimit] = useState<OutletLimit>(50);
@@ -236,15 +237,15 @@ export function Step7MapView() {
 
       <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-3 p-3 sm:p-4">
         <div className="grid gap-2">
-          <div className="grid grid-cols-[1fr_auto] gap-2">
-          <Tabs className="w-full justify-between sm:w-auto">
+          <div className="flex items-center gap-2">
+          <Tabs className="shrink-0">
             {(["list", "map"] as const).map((item) => (
-              <TabButton key={item} active={tab === item} className="flex-1 capitalize sm:flex-none" onClick={() => setTab(item)}>
+              <TabButton key={item} active={tab === item} className="min-w-16 px-4 capitalize sm:min-w-20" onClick={() => setTab(item)}>
                 {item}
               </TabButton>
             ))}
           </Tabs>
-          <div className="flex gap-2">
+          <div className="ml-auto flex gap-2">
             <Button variant={locationError ? "outline" : "secondary"} className="relative min-h-10 w-10 px-0" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
               <SlidersHorizontal size={18} />
               {locationError ? <AlertTriangle className="absolute -right-1 -top-1 text-amber-600" size={14} aria-hidden="true" /> : null}
@@ -276,7 +277,7 @@ export function Step7MapView() {
         ) : (
           <div className="relative min-h-80 flex-1 overflow-hidden rounded-lg border bg-card">
             <MapContainer center={center} zoom={14} className="h-full w-full">
-              <MapCenterUpdater center={center} />
+              {followLocation ? <MapCenterUpdater center={center} /> : null}
               <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               {userLocation ? (
                 <Marker position={[userLocation.latitude, userLocation.longitude]} title="Your location">
@@ -319,6 +320,15 @@ export function Step7MapView() {
                 );
               })}
             </MapContainer>
+            <Button
+              variant={followLocation ? "primary" : "secondary"}
+              className="absolute right-3 top-3 z-[500] min-h-10 w-10 bg-card/95 px-0 text-foreground shadow-lg backdrop-blur hover:bg-card"
+              aria-label={followLocation ? "Disable follow location" : "Enable follow location"}
+              title={followLocation ? "Disable follow location" : "Enable follow location"}
+              onClick={() => setFollowLocation((enabled) => !enabled)}
+            >
+              {followLocation ? <LocateFixed size={18} /> : <LocateOff size={18} />}
+            </Button>
             <MapLegend outlets={mapOutlets} validations={validations} mapping={confirmedMapping} />
           </div>
         )}
