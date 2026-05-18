@@ -57,5 +57,11 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Sync status")).toBeInTheDocument();
     expect(screen.getByLabelText("Reviewed progress chart")).toBeInTheDocument();
     expect(screen.getByText("40%")).toBeInTheDocument();
+    expect(screen.getByText("4 of 10 reviewed")).toBeInTheDocument();
+    expect(screen.getByText("Valid")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("30%")).toBeInTheDocument();
+    expect(screen.getByText("Needs update")).toBeInTheDocument();
+    expect(screen.getByText("20%")).toBeInTheDocument();
   });
 });

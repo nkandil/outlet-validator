@@ -9,6 +9,7 @@
     "netlify:build": "pnpm --filter @workspace/db run push && pnpm --filter @workspace/outlet-validator run build",
     "typecheck": "pnpm -r --if-present run typecheck",
     "test": "pnpm -r --if-present run test",
+    "test:db-smoke": "pnpm --filter @workspace/api-server run test:db-smoke",
     "test:e2e": "playwright test",
     "dev:api": "pnpm --filter @workspace/api-server run dev",
     "dev:web": "pnpm --filter @workspace/outlet-validator run dev"

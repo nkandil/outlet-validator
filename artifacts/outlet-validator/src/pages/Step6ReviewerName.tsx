@@ -8,9 +8,11 @@ export function Step6ReviewerName() {
   const state = useOutletStore();
   const { user } = useAuth();
   const [warning, setWarning] = useState("");
+  const [saving, setSaving] = useState(false);
 
   async function continueToFieldMode() {
-    if (!user) return;
+    if (!user || saving) return;
+    setSaving(true);
     state.setReviewerName(user.name);
     state.setSyncState("syncing");
     try {
@@ -33,6 +35,7 @@ export function Step6ReviewerName() {
       state.setSyncState("failed", err instanceof Error ? err.message : "Backend unavailable");
       setWarning("Session was saved locally. Backend sync will retry later.");
     } finally {
+      setSaving(false);
       state.setStep(7);
     }
   }
@@ -49,7 +52,7 @@ export function Step6ReviewerName() {
           <Button variant="secondary" onClick={() => state.setStep(5)}>
             Back
           </Button>
-          <Button onClick={continueToFieldMode}>Start Validation</Button>
+          <Button disabled={saving} onClick={continueToFieldMode}>{saving ? "Saving..." : "Start Validation"}</Button>
         </div>
       </Panel>
     </div>

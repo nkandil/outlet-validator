@@ -81,6 +81,7 @@ function installFetchMock() {
     if (url === "/api/users" && method === "GET") return json(users);
     if (url === "/api/users" && method === "POST") return json({ id: "new-id", name: "New Reviewer", email: "new@example.com", role: "reviewer" }, 201);
     if (url === "/api/users/reviewer-id" && method === "PATCH") return json({ id: "reviewer-id", name: "Reviewer", email: "reviewer@example.com", role: "coordinator" });
+    if (url === "/api/users/reviewer-id/password" && method === "PATCH") return json({ id: "reviewer-id", name: "Reviewer", email: "reviewer@example.com", role: "reviewer" });
     if (url === "/api/users/reviewer-id" && method === "DELETE") {
       return {
         ok: true,
@@ -193,6 +194,34 @@ describe("AdminPage", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/api/users/reviewer-id", expect.objectContaining({ method: "DELETE" })));
   });
 
+  it("resets a user password from an inline users row action", async () => {
+    const fetchMock = installFetchMock();
+    renderAdmin();
+
+    const changePasswordButton = await screen.findByRole("button", { name: /change password for reviewer/i });
+    expect(changePasswordButton).toHaveTextContent("");
+    await userEvent.click(changePasswordButton);
+
+    const passwordInput = await screen.findByLabelText("New password for Reviewer");
+    const saveButton = screen.getByRole("button", { name: /save password for reviewer/i });
+    expect(saveButton).toBeDisabled();
+
+    await userEvent.type(passwordInput, "new-temporary-password");
+    await userEvent.click(saveButton);
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://localhost:4000/api/users/reviewer-id/password",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ password: "new-temporary-password" })
+        })
+      )
+    );
+    await waitFor(() => expect(screen.queryByLabelText("New password for Reviewer")).not.toBeInTheDocument());
+    expect(await screen.findByText("Password updated")).toBeInTheDocument();
+  });
+
   it("creates a group and updates membership", async () => {
     const fetchMock = installFetchMock();
     renderAdmin();
@@ -200,7 +229,9 @@ describe("AdminPage", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Groups" }));
     await userEvent.type(screen.getByLabelText("Group name"), "New Group");
     await userEvent.click(screen.getByRole("button", { name: /create group/i }));
-    await userEvent.click(await screen.findByRole("button", { name: /edit north reviewers/i }));
+    const editButton = await screen.findByRole("button", { name: /edit north reviewers/i });
+    expect(editButton).toHaveTextContent("");
+    await userEvent.click(editButton);
     const membership = screen.getByRole("group", { name: /group members/i });
     fireEvent.click(within(membership).getByLabelText(/reviewer@example.com/i));
     await userEvent.click(screen.getByRole("button", { name: /save members/i }));
@@ -219,10 +250,15 @@ describe("AdminPage", () => {
     expect(screen.getByText("Group details")).toBeInTheDocument();
     expect(screen.getByText("Members")).toBeInTheDocument();
     expect(screen.getByText("1 member")).toBeInTheDocument();
+    const fieldGrid = screen.getByLabelText("Edit group name").closest("label")?.parentElement;
+    expect(fieldGrid).toHaveClass("grid", "gap-3");
+    expect(fieldGrid?.className).not.toContain("grid-cols");
     await userEvent.clear(screen.getByLabelText("Edit description"));
     await userEvent.type(screen.getByLabelText("Edit description"), "Updated coverage");
     await userEvent.click(screen.getByRole("button", { name: /save group details/i }));
-    await userEvent.click(screen.getByRole("button", { name: /delete north reviewers/i }));
+    const deleteButton = screen.getByRole("button", { name: /delete north reviewers/i });
+    expect(deleteButton).toHaveTextContent("");
+    await userEvent.click(deleteButton);
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -244,6 +280,10 @@ describe("AdminPage", () => {
     await userEvent.click(await screen.findByRole("button", { name: /manage may route/i }));
     fireEvent.click(await screen.findByLabelText(/north reviewers/i));
     await userEvent.click(screen.getByRole("button", { name: /save assignments/i }));
+    expect(await screen.findByText("Assignments saved")).toBeInTheDocument();
+    expect(screen.getByLabelText("Sessions management workspace")).toHaveClass("lg:h-[calc(100dvh-15rem)]");
+    expect(screen.getByLabelText("Session configuration fields")).toHaveClass("overflow-y-auto");
+    expect(screen.getByLabelText("Session configuration actions")).toHaveClass("border-t", "bg-card");
     await userEvent.clear(screen.getByLabelText("Nearby radius"));
     await userEvent.type(screen.getByLabelText("Nearby radius"), "3");
     await userEvent.selectOptions(screen.getByLabelText("Display field"), "channel");

@@ -16,6 +16,10 @@ const updateUserRoleSchema = z.object({
   role: z.enum(["admin", "coordinator", "reviewer"])
 });
 
+const updateUserPasswordSchema = z.object({
+  password: z.string().min(8)
+});
+
 function parseBody<T>(parse: (body: unknown) => T, body: unknown): T {
   try {
     return parse(body);
@@ -45,6 +49,13 @@ export function createUsersRouter(userRepository: UserRepository) {
   router.patch("/:id", requireRole("admin"), async (req, res) => {
     const body = parseBody((input) => updateUserRoleSchema.parse(input), req.body);
     const user = await userRepository.updateRole(String(req.params.id), body.role);
+    if (!user) throw new HttpError(404, "User not found");
+    res.json(user);
+  });
+
+  router.patch("/:id/password", requireRole("admin"), async (req, res) => {
+    const body = parseBody((input) => updateUserPasswordSchema.parse(input), req.body);
+    const user = await userRepository.updatePassword(String(req.params.id), body.password);
     if (!user) throw new HttpError(404, "User not found");
     res.json(user);
   });

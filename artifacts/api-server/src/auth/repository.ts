@@ -1,5 +1,5 @@
 import { getDb, users, type AuthUser, type CreateUserBody, type UserRole, type UserRow } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { HttpError } from "../http-error";
 import { hashPassword, verifyPassword } from "./crypto";
@@ -10,6 +10,7 @@ export interface UserRepository {
   list(role?: UserRole, includeInactive?: boolean): Promise<AuthUser[]>;
   create(body: CreateUserBody): Promise<AuthUser>;
   updateRole(id: string, role: UserRole): Promise<AuthUser | null>;
+  updatePassword(id: string, password: string): Promise<AuthUser | null>;
   deactivate(id: string): Promise<AuthUser | null>;
   ensureSeedAdmin(): Promise<void>;
 }
@@ -111,6 +112,19 @@ export class PostgresUserRepository implements UserRepository {
     }
   }
 
+  async updatePassword(id: string, password: string) {
+    try {
+      const [row] = await getDb()
+        .update(users)
+        .set({ passwordHash: hashPassword(password) })
+        .where(and(eq(users.id, id), eq(users.isActive, true)))
+        .returning();
+      return row ? withoutPassword(toAuthUser(row)) : null;
+    } catch (error) {
+      throw asDatabaseSetupError(error);
+    }
+  }
+
   async deactivate(id: string) {
     try {
       const [row] = await getDb().update(users).set({ isActive: false, disabledAt: new Date() }).where(eq(users.id, id)).returning();
@@ -205,6 +219,14 @@ export class InMemoryUserRepository implements UserRepository {
     const user = this.rows.get(id);
     if (!user || user.isActive === false) return null;
     const next = { ...user, role };
+    this.rows.set(id, next);
+    return withoutPassword(next);
+  }
+
+  async updatePassword(id: string, password: string) {
+    const user = this.rows.get(id);
+    if (!user || user.isActive === false) return null;
+    const next = { ...user, passwordHash: hashPassword(password) };
     this.rows.set(id, next);
     return withoutPassword(next);
   }

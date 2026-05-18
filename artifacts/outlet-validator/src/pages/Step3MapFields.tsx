@@ -9,10 +9,11 @@ import { useOutletStore } from "../store";
 export function Step3MapFields() {
   const state = useOutletStore();
   const [warning, setWarning] = useState("");
+  const [saving, setSaving] = useState(false);
   const mapping = state.confirmedMapping;
   const outlets = useMemo(() => buildOutlets(state.rawRows, mapping), [state.rawRows, mapping]);
   const duplicates = duplicateIds(outlets);
-  const canContinue = mapping.id && mapping.lat && mapping.lng && outlets.length > 0;
+  const canContinue = mapping.id && mapping.lat && mapping.lng && outlets.length > 0 && !saving;
   const availableValues = distinctValues(outlets, mapping.colorByField);
   const shapeValues = distinctValues(outlets, mapping.shapeByField);
 
@@ -21,7 +22,9 @@ export function Step3MapFields() {
   }
 
   async function saveAndContinue() {
+    if (saving) return;
     const sessionName = state.sessionName || state.fileName || "Outlet validation session";
+    setSaving(true);
     state.setOutlets(outlets);
     state.setSyncState("syncing");
     try {
@@ -43,6 +46,7 @@ export function Step3MapFields() {
       state.setSyncState("failed", err instanceof Error ? err.message : "Backend unavailable");
       setWarning("Session could not be saved to the backend. You can continue offline.");
     } finally {
+      setSaving(false);
       state.setStep(4);
     }
   }
@@ -133,7 +137,7 @@ export function Step3MapFields() {
         </div>
         <div className="flex justify-end">
           <Button disabled={!canContinue} onClick={saveAndContinue}>
-            Continue
+            {saving ? "Saving..." : "Continue"}
           </Button>
         </div>
       </Panel>

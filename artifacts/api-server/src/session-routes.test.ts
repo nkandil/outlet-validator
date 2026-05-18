@@ -149,6 +149,25 @@ describe("protected outlet validator routes", () => {
     await request(server).patch("/api/users/other-reviewer-id").set("Authorization", `Bearer ${coordinator}`).send({ role: "coordinator" }).expect(403);
   });
 
+  it("lets admins reset user passwords and blocks non-admins", async () => {
+    const server = app();
+    const admin = await login(server, "admin@example.com");
+    const coordinator = await login(server, "coord@example.com");
+
+    const updated = await request(server).patch("/api/users/reviewer-id/password").set("Authorization", `Bearer ${admin}`).send({ password: "new-temporary-password" }).expect(200);
+    expect(updated.body).toMatchObject({ id: "reviewer-id", email: "reviewer@example.com", role: "reviewer" });
+    expect(updated.body.passwordHash).toBeUndefined();
+
+    await request(server).post("/api/auth/login").send({ email: "reviewer@example.com", password: "password" }).expect(401);
+    await request(server).post("/api/auth/login").send({ email: "reviewer@example.com", password: "new-temporary-password" }).expect(200);
+
+    await request(server).patch("/api/users/other-reviewer-id/password").set("Authorization", `Bearer ${coordinator}`).send({ password: "another-temporary-password" }).expect(403);
+    await request(server).patch("/api/users/other-reviewer-id/password").set("Authorization", `Bearer ${admin}`).send({ password: "short" }).expect(400);
+    await request(server).patch("/api/users/missing-id/password").set("Authorization", `Bearer ${admin}`).send({ password: "another-temporary-password" }).expect(404);
+    await request(server).delete("/api/users/other-reviewer-id").set("Authorization", `Bearer ${admin}`).expect(204);
+    await request(server).patch("/api/users/other-reviewer-id/password").set("Authorization", `Bearer ${admin}`).send({ password: "another-temporary-password" }).expect(404);
+  });
+
   it("lets admins deactivate users while preserving history and blocking login", async () => {
     const server = app();
     const admin = await login(server, "admin@example.com");

@@ -1,6 +1,6 @@
-import { Save, Search, Settings, Trash2, Users } from "lucide-react";
+import { Edit3, KeyRound, Save, Search, Settings, Trash2, Users } from "lucide-react";
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { canAdminister, useAuth } from "../auth";
 import { ShapePicker } from "../components/ShapePicker";
@@ -100,6 +100,9 @@ function UsersTab({ users, currentUserId, onChanged }: { users: AuthUser[]; curr
   const [saving, setSaving] = useState(false);
   const [roleSavingId, setRoleSavingId] = useState("");
   const [deletingId, setDeletingId] = useState("");
+  const [passwordUserId, setPasswordUserId] = useState("");
+  const [passwordValue, setPasswordValue] = useState("");
+  const [passwordSavingId, setPasswordSavingId] = useState("");
   const filtered = users.filter((user) => `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(query.toLowerCase()));
 
   async function createUser() {
@@ -134,6 +137,18 @@ function UsersTab({ users, currentUserId, onChanged }: { users: AuthUser[]; curr
       await onChanged("User deactivated");
     } finally {
       setDeletingId("");
+    }
+  }
+
+  async function savePassword(user: AuthUser) {
+    setPasswordSavingId(user.id);
+    try {
+      await usersApi.updatePassword(user.id, passwordValue);
+      setPasswordUserId("");
+      setPasswordValue("");
+      await onChanged("Password updated");
+    } finally {
+      setPasswordSavingId("");
     }
   }
 
@@ -173,9 +188,9 @@ function UsersTab({ users, currentUserId, onChanged }: { users: AuthUser[]; curr
             <Input className="pl-10" aria-label="Search users" value={query} onChange={(event) => setQuery(event.target.value)} />
           </label>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-left text-sm">
-            <thead className="text-xs uppercase text-slate-500">
+        <div>
+          <table className="w-full text-left text-sm">
+            <thead className="hidden text-xs uppercase text-slate-500 sm:table-header-group">
               <tr>
                 <th className="py-2">Name</th>
                 <th>Email</th>
@@ -183,39 +198,81 @@ function UsersTab({ users, currentUserId, onChanged }: { users: AuthUser[]; curr
                 <th>Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="grid gap-2 sm:table-row-group sm:divide-y sm:divide-slate-100">
               {filtered.map((item) => (
-                <tr key={item.id}>
-                  <td className="py-3 font-semibold text-slate-900">{item.name}</td>
-                  <td>{item.email}</td>
-                  <td>
-                    <Select
-                      aria-label={`Role for ${item.name}`}
-                      className="h-10 min-h-0 w-40 bg-slate-50 py-1 text-sm"
-                      value={item.role}
-                      disabled={roleSavingId === item.id}
-                      onChange={(event) => void updateRole(item.id, event.target.value as UserRole)}
-                    >
-                      {roles.map((roleOption) => (
-                        <option key={roleOption} value={roleOption}>
-                          {roleOption}
-                        </option>
-                      ))}
-                    </Select>
-                  </td>
-                  <td>
-                    <Button
-                      variant="ghost"
-                      className="min-h-10 w-10 px-0 text-slate-500 hover:text-red-700"
-                      aria-label={`Delete ${item.name}`}
-                      title={`Delete ${item.name}`}
-                      disabled={item.id === currentUserId || deletingId === item.id}
-                      onClick={() => void deleteUser(item)}
-                    >
-                      <Trash2 size={16} aria-hidden="true" />
-                    </Button>
-                  </td>
-                </tr>
+                <Fragment key={item.id}>
+                  <tr className="grid gap-2 rounded-md border border-slate-200 bg-white p-3 sm:table-row sm:border-0 sm:p-0">
+                    <td className="grid gap-1 break-words sm:table-cell sm:py-3 sm:font-semibold sm:text-slate-900">
+                      <span className="text-xs font-semibold uppercase text-slate-500 sm:hidden">Name</span>
+                      <span className="font-semibold text-slate-900">{item.name}</span>
+                    </td>
+                    <td className="grid gap-1 break-all sm:table-cell sm:break-normal">
+                      <span className="text-xs font-semibold uppercase text-slate-500 sm:hidden">Email</span>
+                      {item.email}
+                    </td>
+                    <td className="grid gap-1 sm:table-cell">
+                      <span className="text-xs font-semibold uppercase text-slate-500 sm:hidden">Role</span>
+                      <Select
+                        aria-label={`Role for ${item.name}`}
+                        className="h-10 min-h-0 w-full bg-slate-50 py-1 text-sm sm:w-40"
+                        value={item.role}
+                        disabled={roleSavingId === item.id}
+                        onChange={(event) => void updateRole(item.id, event.target.value as UserRole)}
+                      >
+                        {roles.map((roleOption) => (
+                          <option key={roleOption} value={roleOption}>
+                            {roleOption}
+                          </option>
+                        ))}
+                      </Select>
+                    </td>
+                    <td className="flex items-center justify-between gap-2 sm:table-cell">
+                      <span className="text-xs font-semibold uppercase text-slate-500 sm:hidden">Actions</span>
+                      <span className="inline-flex gap-2">
+                        <Button
+                          variant="ghost"
+                          className="min-h-10 w-10 px-0 text-slate-500 hover:text-slate-950"
+                          aria-label={`Change password for ${item.name}`}
+                          title={`Change password for ${item.name}`}
+                          disabled={passwordSavingId === item.id}
+                          onClick={() => {
+                            setPasswordUserId(item.id);
+                            setPasswordValue("");
+                          }}
+                        >
+                          <KeyRound size={16} aria-hidden="true" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="min-h-10 w-10 px-0 text-slate-500 hover:text-red-700"
+                          aria-label={`Delete ${item.name}`}
+                          title={`Delete ${item.name}`}
+                          disabled={item.id === currentUserId || deletingId === item.id}
+                          onClick={() => void deleteUser(item)}
+                        >
+                          <Trash2 size={16} aria-hidden="true" />
+                        </Button>
+                      </span>
+                    </td>
+                  </tr>
+                  {passwordUserId === item.id ? (
+                    <tr className="grid rounded-md border border-slate-200 bg-slate-50 p-3 sm:table-row sm:border-0 sm:bg-transparent sm:p-0">
+                      <td colSpan={4} className="sm:py-3">
+                        <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[minmax(12rem,1fr)_auto_auto] sm:items-end">
+                          <Field label={`New password for ${item.name}`}>
+                            <Input type="password" value={passwordValue} onChange={(event) => setPasswordValue(event.target.value)} />
+                          </Field>
+                          <Button disabled={passwordValue.length < 8 || passwordSavingId === item.id} onClick={() => void savePassword(item)}>
+                            Save password for {item.name}
+                          </Button>
+                          <Button variant="ghost" onClick={() => { setPasswordUserId(""); setPasswordValue(""); }}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -297,11 +354,11 @@ function GroupsTab({ users, groups, onChanged }: { users: AuthUser[]; groups: Us
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" onClick={() => editGroup(group.id)}>
-                    Edit {group.name}
+                  <Button variant="secondary" className="min-h-10 w-10 px-0" aria-label={`Edit ${group.name}`} title={`Edit ${group.name}`} onClick={() => editGroup(group.id)}>
+                    <Edit3 size={16} aria-hidden="true" />
                   </Button>
-                  <Button variant="danger" onClick={() => deleteGroup(group)}>
-                    Delete {group.name}
+                  <Button variant="danger" className="min-h-10 w-10 px-0" aria-label={`Delete ${group.name}`} title={`Delete ${group.name}`} onClick={() => deleteGroup(group)}>
+                    <Trash2 size={16} aria-hidden="true" />
                   </Button>
                 </div>
               </div>
@@ -312,7 +369,7 @@ function GroupsTab({ users, groups, onChanged }: { users: AuthUser[]; groups: Us
                       <h3 className="text-sm font-bold text-slate-950">Group details</h3>
                       <p className="text-xs text-slate-500">Name and describe the team admins assign to sessions.</p>
                     </div>
-                    <div className="grid gap-3 md:grid-cols-[minmax(12rem,18rem)_1fr]">
+                    <div className="grid gap-3">
                       <Field label="Edit group name">
                         <Input value={editName} onChange={(event) => setEditName(event.target.value)} />
                       </Field>
@@ -364,9 +421,14 @@ function SessionsTab({ users, groups, sessions, onChanged }: { users: AuthUser[]
   const [selectedId, setSelectedId] = useState("");
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [assignment, setAssignment] = useState<Assignment>({ userIds: [], groupIds: [] });
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
+  const [assignmentMessage, setAssignmentMessage] = useState("");
+  const [assignmentError, setAssignmentError] = useState("");
 
   async function manage(id: string) {
     setSelectedId(id);
+    setAssignmentMessage("");
+    setAssignmentError("");
     const [nextDetail, nextAssignment] = await Promise.all([sessionsApi.get(id), sessionsApi.getAssignments(id)]);
     setDetail(nextDetail);
     setAssignment({ userIds: nextAssignment.userIds, groupIds: nextAssignment.groupIds ?? [] });
@@ -374,13 +436,24 @@ function SessionsTab({ users, groups, sessions, onChanged }: { users: AuthUser[]
 
   async function saveAssignments() {
     if (!selectedId) return;
-    await sessionsApi.setAssignments(selectedId, assignment);
-    await onChanged();
+    setAssignmentSaving(true);
+    setAssignmentMessage("");
+    setAssignmentError("");
+    try {
+      const saved = await sessionsApi.setAssignments(selectedId, assignment);
+      setAssignment({ userIds: saved.userIds, groupIds: saved.groupIds ?? [] });
+      setAssignmentMessage("Assignments saved");
+      await onChanged();
+    } catch (err) {
+      setAssignmentError(err instanceof Error ? err.message : "Assignments could not be saved");
+    } finally {
+      setAssignmentSaving(false);
+    }
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
-      <Panel className="grid content-start gap-2">
+    <div className="grid gap-4 lg:h-[calc(100dvh-15rem)] lg:min-h-0 lg:grid-cols-[minmax(18rem,0.42fr)_minmax(0,1fr)]" aria-label="Sessions management workspace">
+      <Panel className="grid content-start gap-2 lg:min-h-0 lg:overflow-y-auto">
         <h2 className="text-lg font-bold text-slate-950">Sessions</h2>
         {sessions.map((session) => (
           <button key={session.id} className="rounded-md border border-slate-200 p-3 text-left hover:border-coke" onClick={() => manage(session.id)}>
@@ -395,7 +468,7 @@ function SessionsTab({ users, groups, sessions, onChanged }: { users: AuthUser[]
       </Panel>
 
       {detail ? (
-        <div className="grid gap-4">
+        <div className="grid min-h-0 gap-4 lg:grid-rows-[auto_minmax(0,1fr)]">
           <Panel className="grid gap-3">
             <h2 className="text-lg font-bold text-slate-950">Assignments</h2>
             <div className="grid gap-4 lg:grid-cols-2">
@@ -421,11 +494,13 @@ function SessionsTab({ users, groups, sessions, onChanged }: { users: AuthUser[]
               </fieldset>
             </div>
             <div>
-              <Button onClick={saveAssignments}>
+              <Button disabled={assignmentSaving} onClick={saveAssignments}>
                 <Save size={18} />
-                Save assignments
+                {assignmentSaving ? "Saving assignments" : "Save assignments"}
               </Button>
             </div>
+            {assignmentMessage ? <Alert tone="success">{assignmentMessage}</Alert> : null}
+            {assignmentError ? <Alert tone="danger">{assignmentError}</Alert> : null}
           </Panel>
           <ConfigEditor detail={detail} onSaved={onChanged} />
         </div>
@@ -475,82 +550,84 @@ function ConfigEditor({ detail, onSaved }: { detail: SessionDetail; onSaved: () 
   }
 
   return (
-    <Panel className="grid gap-4">
-      <div className="flex items-center gap-2">
+    <Panel className="grid h-full max-h-[34vh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0 lg:max-h-none">
+      <div className="flex items-center gap-2 border-b border-slate-100 p-4">
         <Settings size={18} className="text-coke" />
         <h2 className="text-lg font-bold text-slate-950">Session configuration</h2>
       </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Field label="Session name">
-          <Input value={name} onChange={(event) => setName(event.target.value)} />
-        </Field>
-        <Field label="Nearby radius">
-          <Input type="number" min="0.1" step="0.1" value={radiusKm} onChange={(event) => setRadiusKm(event.target.value)} />
-        </Field>
-        <Field label="ID field">
-          <FieldSelect value={mapping.id} headers={headers} onChange={(value) => updateMapping({ id: value })} />
-        </Field>
-        <Field label="Display field">
-          <FieldSelect value={mapping.displayField} headers={headers} onChange={(value) => updateMapping({ displayField: value })} allowEmpty />
-        </Field>
-        <Field label="Latitude field">
-          <FieldSelect value={mapping.lat} headers={headers} onChange={(value) => updateMapping({ lat: value })} />
-        </Field>
-        <Field label="Longitude field">
-          <FieldSelect value={mapping.lng} headers={headers} onChange={(value) => updateMapping({ lng: value })} />
-        </Field>
-        <Field label="Color by field">
-          <FieldSelect value={mapping.colorByField} headers={headers} onChange={(value) => updateMapping({ colorByField: value, colorByValues: seedColorValues(detail.outlets, value) })} allowEmpty />
-        </Field>
-        <Field label="Shape by field">
-          <FieldSelect value={mapping.shapeByField} headers={headers} onChange={(value) => updateMapping({ shapeByField: value, shapeByValues: seedShapeValues(detail.outlets, value) })} allowEmpty />
-        </Field>
+      <div className="grid min-h-0 gap-4 overflow-y-auto p-4" aria-label="Session configuration fields">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <Field label="Session name">
+            <Input value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+          <Field label="Nearby radius">
+            <Input type="number" min="0.1" step="0.1" value={radiusKm} onChange={(event) => setRadiusKm(event.target.value)} />
+          </Field>
+          <Field label="ID field">
+            <FieldSelect value={mapping.id} headers={headers} onChange={(value) => updateMapping({ id: value })} />
+          </Field>
+          <Field label="Display field">
+            <FieldSelect value={mapping.displayField} headers={headers} onChange={(value) => updateMapping({ displayField: value })} allowEmpty />
+          </Field>
+          <Field label="Latitude field">
+            <FieldSelect value={mapping.lat} headers={headers} onChange={(value) => updateMapping({ lat: value })} />
+          </Field>
+          <Field label="Longitude field">
+            <FieldSelect value={mapping.lng} headers={headers} onChange={(value) => updateMapping({ lng: value })} />
+          </Field>
+          <Field label="Color by field">
+            <FieldSelect value={mapping.colorByField} headers={headers} onChange={(value) => updateMapping({ colorByField: value, colorByValues: seedColorValues(detail.outlets, value) })} allowEmpty />
+          </Field>
+          <Field label="Shape by field">
+            <FieldSelect value={mapping.shapeByField} headers={headers} onChange={(value) => updateMapping({ shapeByField: value, shapeByValues: seedShapeValues(detail.outlets, value) })} allowEmpty />
+          </Field>
+        </div>
+
+        <FieldPicker title="Visible fields" headers={headers} selected={config.visibleFields} onChange={(visibleFields) => setConfig({ ...config, visibleFields })} />
+        <FieldPicker title="Fields to verify" headers={headers} selected={config.fieldsToVerify} onChange={(fieldsToVerify) => setConfig({ ...config, fieldsToVerify })} />
+
+        {colorValues.length ? (
+          <div className="grid gap-2">
+            <h3 className="text-sm font-semibold text-slate-700">Color values</h3>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {colorValues.map((value, index) => (
+                <label key={value} className="flex items-center gap-2 text-sm">
+                  <input type="color" value={mapping.colorByValues[value] ?? defaultColors[index % defaultColors.length]} onChange={(event) => updateMapping({ colorByValues: { ...mapping.colorByValues, [value]: event.target.value } })} />
+                  <span>{value}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {shapeValues.length ? (
+          <div className="grid gap-2">
+            <h3 className="text-sm font-semibold text-slate-700">Shape values</h3>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {shapeValues.map((value) => (
+                <div key={value} className="grid gap-2 rounded-md border border-slate-200 p-3 text-sm">
+                  <div className="font-semibold text-slate-700">{value}</div>
+                  <ShapePicker
+                    label={`${value} shape`}
+                    value={mapping.shapeByValues[value] ?? "circle"}
+                    onChange={(shape) => updateMapping({ shapeByValues: { ...mapping.shapeByValues, [value]: shape } })}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {requiredMissing ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">ID, latitude, and longitude fields are required.</div> : null}
+        {preview.length ? (
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+            {preview.map((item) => (
+              <div key={item}>{item}</div>
+            ))}
+          </div>
+        ) : null}
       </div>
-
-      <FieldPicker title="Visible fields" headers={headers} selected={config.visibleFields} onChange={(visibleFields) => setConfig({ ...config, visibleFields })} />
-      <FieldPicker title="Fields to verify" headers={headers} selected={config.fieldsToVerify} onChange={(fieldsToVerify) => setConfig({ ...config, fieldsToVerify })} />
-
-      {colorValues.length ? (
-        <div className="grid gap-2">
-          <h3 className="text-sm font-semibold text-slate-700">Color values</h3>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {colorValues.map((value, index) => (
-              <label key={value} className="flex items-center gap-2 text-sm">
-                <input type="color" value={mapping.colorByValues[value] ?? defaultColors[index % defaultColors.length]} onChange={(event) => updateMapping({ colorByValues: { ...mapping.colorByValues, [value]: event.target.value } })} />
-                <span>{value}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {shapeValues.length ? (
-        <div className="grid gap-2">
-          <h3 className="text-sm font-semibold text-slate-700">Shape values</h3>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {shapeValues.map((value) => (
-              <div key={value} className="grid gap-2 rounded-md border border-slate-200 p-3 text-sm">
-                <div className="font-semibold text-slate-700">{value}</div>
-                <ShapePicker
-                  label={`${value} shape`}
-                  value={mapping.shapeByValues[value] ?? "circle"}
-                  onChange={(shape) => updateMapping({ shapeByValues: { ...mapping.shapeByValues, [value]: shape } })}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {requiredMissing ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">ID, latitude, and longitude fields are required.</div> : null}
-      {preview.length ? (
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-          {preview.map((item) => (
-            <div key={item}>{item}</div>
-          ))}
-        </div>
-      ) : null}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 border-t border-slate-100 bg-card p-4 shadow-[0_-8px_16px_rgba(15,23,42,0.04)]" aria-label="Session configuration actions">
         <Button variant="secondary" onClick={buildPreview}>
           Preview changes
         </Button>

@@ -94,7 +94,7 @@ export function DashboardPage() {
             <Kpi label="Reviewed" value={metrics.reviewedOutlets} detail={`${reviewPercent(metrics)}% complete`} tone="success" />
             <Kpi label="Pending sync" value={pendingSyncCount} detail={pendingSyncCount ? "Needs retry" : "Clear"} tone={pendingSyncCount ? "warning" : "success"} />
           </div>
-          <div className="grid gap-4 lg:grid-cols-[360px_1fr_280px]">
+          <div className="grid gap-4 lg:grid-cols-[minmax(260px,320px)_1fr_minmax(220px,260px)]">
             <ProgressDonut metrics={metrics} />
             <StatusBars metrics={metrics} />
             <SyncPanel pendingSyncCount={pendingSyncCount} selectedSession={sessions.find((session) => session.id === sessionId)} />
@@ -112,7 +112,7 @@ function Kpi({ label, value, detail, tone = "neutral" }: { label: string; value:
         <div className="text-sm font-semibold text-slate-500">{label}</div>
         <Badge tone={tone}>{detail}</Badge>
       </div>
-      <div className="text-3xl font-extrabold text-slate-950">{value}</div>
+      <div className="text-2xl font-extrabold text-slate-950">{value}</div>
     </Panel>
   );
 }
@@ -125,10 +125,10 @@ function ProgressDonut({ metrics }: { metrics: DashboardMetrics }) {
     <Panel className="grid content-start gap-4">
       <div>
         <h2 className="text-lg font-bold text-slate-950">Review progress</h2>
-        <p className="text-sm text-slate-500">{metrics.reviewedOutlets} reviewed of {metrics.totalOutlets} outlets</p>
+        <p className="text-sm text-slate-500">Reviewed outlet coverage</p>
       </div>
-      <div className="grid place-items-center">
-        <svg aria-label="Reviewed progress chart" className="h-44 w-44" viewBox="0 0 120 120" role="img">
+      <div className="grid place-items-center gap-3">
+        <svg aria-label="Reviewed progress chart" className="h-36 w-36" viewBox="0 0 120 120" role="img">
           <circle cx="60" cy="60" r="42" fill="none" stroke="#e2e8f0" strokeWidth="14" />
           <circle
             cx="60"
@@ -148,12 +148,17 @@ function ProgressDonut({ metrics }: { metrics: DashboardMetrics }) {
             complete
           </text>
         </svg>
+        <div className="text-center">
+          <div className="text-sm font-bold text-slate-950">{metrics.reviewedOutlets} of {metrics.totalOutlets} reviewed</div>
+          <div className="text-xs text-slate-500">{Math.max(metrics.pendingOutlets, 0)} pending</div>
+        </div>
       </div>
     </Panel>
   );
 }
 
 function StatusBars({ metrics }: { metrics: DashboardMetrics }) {
+  const total = Math.max(metrics.totalOutlets, 0);
   const items = [
     { label: "Valid", value: metrics.validCount, color: "bg-green-500" },
     { label: "Invalid", value: metrics.invalidCount, color: "bg-red-500" },
@@ -166,20 +171,26 @@ function StatusBars({ metrics }: { metrics: DashboardMetrics }) {
     <Panel className="grid content-start gap-4">
       <div>
         <h2 className="text-lg font-bold text-slate-950">Status distribution</h2>
-        <p className="text-sm text-slate-500">Validation outcomes for the selected scope.</p>
+        <p className="text-sm text-slate-500">Counts and share of all outlets in the selected scope.</p>
       </div>
       <div className="grid gap-3">
-        {items.map((item) => (
-          <div key={item.label} className="grid gap-1">
+        {items.map((item) => {
+          const percent = percentOf(item.value, total);
+          return (
+          <div key={item.label} className="grid gap-1" aria-label={`${item.label}: ${item.value}, ${percent}% of outlets`}>
             <div className="flex items-center justify-between gap-3 text-sm">
               <span className="font-semibold text-slate-700">{item.label}</span>
-              <span className="font-bold text-slate-950">{item.value}</span>
+              <span className="flex items-center gap-2">
+                <span className="font-bold text-slate-950">{item.value}</span>
+                <span className="text-xs font-semibold text-slate-500">{percent}%</span>
+              </span>
             </div>
             <div className="h-3 overflow-hidden rounded-full bg-slate-100">
               <div className={`h-full rounded-full ${item.color}`} style={{ width: `${Math.max((item.value / max) * 100, item.value ? 6 : 0)}%` }} />
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </Panel>
   );
@@ -204,4 +215,9 @@ function SyncPanel({ pendingSyncCount, selectedSession }: { pendingSyncCount: nu
 function reviewPercent(metrics: DashboardMetrics) {
   if (!metrics.totalOutlets) return 0;
   return Math.round((metrics.reviewedOutlets / metrics.totalOutlets) * 100);
+}
+
+function percentOf(value: number, total: number) {
+  if (!total) return 0;
+  return Math.round((value / total) * 100);
 }

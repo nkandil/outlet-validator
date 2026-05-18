@@ -90,6 +90,11 @@ export const usersApi = {
       method: "PATCH",
       body: JSON.stringify({ role })
     }),
+  updatePassword: (id: string, password: string) =>
+    request<AuthUser>(`/users/${id}/password`, {
+      method: "PATCH",
+      body: JSON.stringify({ password })
+    }),
   delete: (id: string) =>
     request<void>(`/users/${id}`, {
       method: "DELETE"
