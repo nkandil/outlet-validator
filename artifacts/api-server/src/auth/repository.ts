@@ -1,5 +1,5 @@
 import { getDb, users, type AuthUser, type CreateUserBody, type UserRole, type UserRow } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { HttpError } from "../http-error";
 import { hashPassword, verifyPassword } from "./crypto";
@@ -11,7 +11,9 @@ export interface UserRepository {
   create(body: CreateUserBody): Promise<AuthUser>;
   updateRole(id: string, role: UserRole): Promise<AuthUser | null>;
   updatePassword(id: string, password: string): Promise<AuthUser | null>;
+  restore(id: string): Promise<AuthUser | null>;
   deactivate(id: string): Promise<AuthUser | null>;
+  hardDelete(id: string): Promise<boolean>;
   ensureSeedAdmin(): Promise<void>;
 }
 
@@ -84,7 +86,21 @@ export class PostgresUserRepository implements UserRepository {
     try {
       const email = body.email.trim().toLowerCase();
       const existing = await this.findByEmail(email);
-      if (existing) throw new HttpError(409, "User email already exists");
+      if (existing && existing.isActive !== false) throw new HttpError(409, "User email already exists");
+      if (existing) {
+        const [row] = await getDb()
+          .update(users)
+          .set({
+            name: body.name.trim(),
+            role: body.role,
+            isActive: true,
+            disabledAt: null,
+            passwordHash: hashPassword(body.password)
+          })
+          .where(eq(users.id, existing.id))
+          .returning();
+        return withoutPassword(toAuthUser(row));
+      }
       const [row] = await getDb()
         .insert(users)
         .values({
@@ -106,7 +122,7 @@ export class PostgresUserRepository implements UserRepository {
   async updateRole(id: string, role: UserRole) {
     try {
       const [row] = await getDb().update(users).set({ role }).where(eq(users.id, id)).returning();
-      return row && row.isActive ? withoutPassword(toAuthUser(row)) : null;
+      return row ? withoutPassword(toAuthUser(row)) : null;
     } catch (error) {
       throw asDatabaseSetupError(error);
     }
@@ -117,8 +133,17 @@ export class PostgresUserRepository implements UserRepository {
       const [row] = await getDb()
         .update(users)
         .set({ passwordHash: hashPassword(password) })
-        .where(and(eq(users.id, id), eq(users.isActive, true)))
+        .where(eq(users.id, id))
         .returning();
+      return row ? withoutPassword(toAuthUser(row)) : null;
+    } catch (error) {
+      throw asDatabaseSetupError(error);
+    }
+  }
+
+  async restore(id: string) {
+    try {
+      const [row] = await getDb().update(users).set({ isActive: true, disabledAt: null }).where(eq(users.id, id)).returning();
       return row ? withoutPassword(toAuthUser(row)) : null;
     } catch (error) {
       throw asDatabaseSetupError(error);
@@ -130,6 +155,28 @@ export class PostgresUserRepository implements UserRepository {
       const [row] = await getDb().update(users).set({ isActive: false, disabledAt: new Date() }).where(eq(users.id, id)).returning();
       return row ? withoutPassword(toAuthUser(row)) : null;
     } catch (error) {
+      throw asDatabaseSetupError(error);
+    }
+  }
+
+  async hardDelete(id: string) {
+    try {
+      const [existing] = await getDb().select().from(users).where(eq(users.id, id));
+      if (!existing) return false;
+      if (existing.isActive) throw new HttpError(400, "Only archived users can be permanently deleted");
+      await getDb().delete(users).where(eq(users.id, id));
+      return true;
+    } catch (error) {
+      if (error instanceof HttpError) throw error;
+      const cause = error instanceof Error ? error : undefined;
+      const nestedCause = cause && "cause" in cause ? (cause as { cause?: unknown }).cause : undefined;
+      const code =
+        cause && "code" in cause
+          ? String((cause as { code?: unknown }).code)
+          : nestedCause && typeof nestedCause === "object" && "code" in nestedCause
+            ? String((nestedCause as { code?: unknown }).code)
+            : "";
+      if (code === "23503") throw new HttpError(409, "User has historical reviews and cannot be permanently deleted");
       throw asDatabaseSetupError(error);
     }
   }
@@ -200,7 +247,20 @@ export class InMemoryUserRepository implements UserRepository {
 
   async create(body: CreateUserBody) {
     const email = body.email.trim().toLowerCase();
-    if (await this.findByEmail(email)) throw new HttpError(409, "User email already exists");
+    const existing = await this.findByEmail(email);
+    if (existing && existing.isActive !== false) throw new HttpError(409, "User email already exists");
+    if (existing) {
+      const next = {
+        ...existing,
+        name: body.name.trim(),
+        role: body.role,
+        isActive: true,
+        disabledAt: null,
+        passwordHash: hashPassword(body.password)
+      };
+      this.rows.set(existing.id, next);
+      return withoutPassword(next);
+    }
     const id = randomUUID();
     const user = {
       id,
@@ -217,7 +277,7 @@ export class InMemoryUserRepository implements UserRepository {
 
   async updateRole(id: string, role: UserRole) {
     const user = this.rows.get(id);
-    if (!user || user.isActive === false) return null;
+    if (!user) return null;
     const next = { ...user, role };
     this.rows.set(id, next);
     return withoutPassword(next);
@@ -225,8 +285,16 @@ export class InMemoryUserRepository implements UserRepository {
 
   async updatePassword(id: string, password: string) {
     const user = this.rows.get(id);
-    if (!user || user.isActive === false) return null;
+    if (!user) return null;
     const next = { ...user, passwordHash: hashPassword(password) };
+    this.rows.set(id, next);
+    return withoutPassword(next);
+  }
+
+  async restore(id: string) {
+    const user = this.rows.get(id);
+    if (!user) return null;
+    const next = { ...user, isActive: true, disabledAt: null };
     this.rows.set(id, next);
     return withoutPassword(next);
   }
@@ -237,6 +305,14 @@ export class InMemoryUserRepository implements UserRepository {
     const next = { ...user, isActive: false, disabledAt: new Date().toISOString() };
     this.rows.set(id, next);
     return withoutPassword(next);
+  }
+
+  async hardDelete(id: string) {
+    const user = this.rows.get(id);
+    if (!user) return false;
+    if (user.isActive !== false) throw new HttpError(400, "Only archived users can be permanently deleted");
+    this.rows.delete(id);
+    return true;
   }
 
   async ensureSeedAdmin() {

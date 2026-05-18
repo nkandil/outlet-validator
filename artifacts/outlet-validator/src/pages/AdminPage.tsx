@@ -1,4 +1,4 @@
-import { Edit3, KeyRound, Save, Search, Settings, Trash2, Users } from "lucide-react";
+import { Edit3, KeyRound, RotateCcw, Save, Search, Settings, Trash2, Users } from "lucide-react";
 import type React from "react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
@@ -29,7 +29,7 @@ export function AdminPage() {
   async function load() {
     setError("");
     try {
-      const [nextUsers, nextGroups, nextSessions] = await Promise.all([usersApi.list(), groupsApi.list(), sessionsApi.list()]);
+      const [nextUsers, nextGroups, nextSessions] = await Promise.all([usersApi.list(undefined, true), groupsApi.list(), sessionsApi.list()]);
       setUsers(nextUsers);
       setGroups(nextGroups);
       setSessions(nextSessions);
@@ -103,17 +103,21 @@ function UsersTab({ users, currentUserId, onChanged }: { users: AuthUser[]; curr
   const [passwordUserId, setPasswordUserId] = useState("");
   const [passwordValue, setPasswordValue] = useState("");
   const [passwordSavingId, setPasswordSavingId] = useState("");
-  const filtered = users.filter((user) => `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(query.toLowerCase()));
+  const [userError, setUserError] = useState("");
+  const filtered = users.filter((user) => `${user.name} ${user.email} ${user.role} ${user.isActive === false ? "archived" : "active"}`.toLowerCase().includes(query.toLowerCase()));
 
   async function createUser() {
     setSaving(true);
+    setUserError("");
     try {
       await usersApi.create({ name, email, role, password });
       setName("");
       setEmail("");
       setRole("reviewer");
       setPassword("");
-      await onChanged("User created");
+      await onChanged("User created or restored");
+    } catch (err) {
+      setUserError(err instanceof Error ? err.message : "User could not be saved");
     } finally {
       setSaving(false);
     }
@@ -121,9 +125,12 @@ function UsersTab({ users, currentUserId, onChanged }: { users: AuthUser[]; curr
 
   async function updateRole(id: string, nextRole: UserRole) {
     setRoleSavingId(id);
+    setUserError("");
     try {
       await usersApi.updateRole(id, nextRole);
       await onChanged("User role updated");
+    } catch (err) {
+      setUserError(err instanceof Error ? err.message : "User role could not be updated");
     } finally {
       setRoleSavingId("");
     }
@@ -132,9 +139,39 @@ function UsersTab({ users, currentUserId, onChanged }: { users: AuthUser[]; curr
   async function deleteUser(user: AuthUser) {
     if (!window.confirm("Deactivate this user? Their past reviews stay in reports.")) return;
     setDeletingId(user.id);
+    setUserError("");
     try {
       await usersApi.delete(user.id);
       await onChanged("User deactivated");
+    } catch (err) {
+      setUserError(err instanceof Error ? err.message : "User could not be deactivated");
+    } finally {
+      setDeletingId("");
+    }
+  }
+
+  async function restoreUser(user: AuthUser) {
+    setDeletingId(user.id);
+    setUserError("");
+    try {
+      await usersApi.restore(user.id);
+      await onChanged("User restored");
+    } catch (err) {
+      setUserError(err instanceof Error ? err.message : "User could not be restored");
+    } finally {
+      setDeletingId("");
+    }
+  }
+
+  async function permanentlyDeleteUser(user: AuthUser) {
+    if (!window.confirm(`Permanently delete "${user.name}"? This cannot be undone.`)) return;
+    setDeletingId(user.id);
+    setUserError("");
+    try {
+      await usersApi.permanentDelete(user.id);
+      await onChanged("User permanently deleted");
+    } catch (err) {
+      setUserError(err instanceof Error ? err.message : "User could not be permanently deleted");
     } finally {
       setDeletingId("");
     }
@@ -142,11 +179,14 @@ function UsersTab({ users, currentUserId, onChanged }: { users: AuthUser[]; curr
 
   async function savePassword(user: AuthUser) {
     setPasswordSavingId(user.id);
+    setUserError("");
     try {
       await usersApi.updatePassword(user.id, passwordValue);
       setPasswordUserId("");
       setPasswordValue("");
       await onChanged("Password updated");
+    } catch (err) {
+      setUserError(err instanceof Error ? err.message : "Password could not be updated");
     } finally {
       setPasswordSavingId("");
     }
@@ -178,6 +218,7 @@ function UsersTab({ users, currentUserId, onChanged }: { users: AuthUser[]; curr
           <Users size={18} />
           Create user
         </Button>
+        {userError ? <Alert tone="danger">{userError}</Alert> : null}
       </Panel>
 
       <Panel className="grid content-start gap-3">
@@ -194,6 +235,7 @@ function UsersTab({ users, currentUserId, onChanged }: { users: AuthUser[]; curr
               <tr>
                 <th className="py-2">Name</th>
                 <th>Email</th>
+                <th>Status</th>
                 <th>Role</th>
                 <th>Actions</th>
               </tr>
@@ -209,6 +251,10 @@ function UsersTab({ users, currentUserId, onChanged }: { users: AuthUser[]; curr
                     <td className="grid gap-1 break-all sm:table-cell sm:break-normal">
                       <span className="text-xs font-semibold uppercase text-slate-500 sm:hidden">Email</span>
                       {item.email}
+                    </td>
+                    <td className="grid gap-1 sm:table-cell">
+                      <span className="text-xs font-semibold uppercase text-slate-500 sm:hidden">Status</span>
+                      <Badge tone={item.isActive === false ? "warning" : "success"}>{item.isActive === false ? "Archived" : "Active"}</Badge>
                     </td>
                     <td className="grid gap-1 sm:table-cell">
                       <span className="text-xs font-semibold uppercase text-slate-500 sm:hidden">Role</span>
@@ -242,22 +288,47 @@ function UsersTab({ users, currentUserId, onChanged }: { users: AuthUser[]; curr
                         >
                           <KeyRound size={16} aria-hidden="true" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          className="min-h-10 w-10 px-0 text-slate-500 hover:text-red-700"
-                          aria-label={`Delete ${item.name}`}
-                          title={`Delete ${item.name}`}
-                          disabled={item.id === currentUserId || deletingId === item.id}
-                          onClick={() => void deleteUser(item)}
-                        >
-                          <Trash2 size={16} aria-hidden="true" />
-                        </Button>
+                        {item.isActive === false ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              className="min-h-10 w-10 px-0 text-slate-500 hover:text-slate-950"
+                              aria-label={`Restore ${item.name}`}
+                              title={`Restore ${item.name}`}
+                              disabled={deletingId === item.id}
+                              onClick={() => void restoreUser(item)}
+                            >
+                              <RotateCcw size={16} aria-hidden="true" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              className="min-h-10 w-10 px-0 text-slate-500 hover:text-red-700"
+                              aria-label={`Permanently delete ${item.name}`}
+                              title={`Permanently delete ${item.name}`}
+                              disabled={deletingId === item.id}
+                              onClick={() => void permanentlyDeleteUser(item)}
+                            >
+                              <Trash2 size={16} aria-hidden="true" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            className="min-h-10 w-10 px-0 text-slate-500 hover:text-red-700"
+                            aria-label={`Delete ${item.name}`}
+                            title={`Delete ${item.name}`}
+                            disabled={item.id === currentUserId || deletingId === item.id}
+                            onClick={() => void deleteUser(item)}
+                          >
+                            <Trash2 size={16} aria-hidden="true" />
+                          </Button>
+                        )}
                       </span>
                     </td>
                   </tr>
                   {passwordUserId === item.id ? (
                     <tr className="grid rounded-md border border-slate-200 bg-slate-50 p-3 sm:table-row sm:border-0 sm:bg-transparent sm:p-0">
-                      <td colSpan={4} className="sm:py-3">
+                      <td colSpan={5} className="sm:py-3">
                         <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[minmax(12rem,1fr)_auto_auto] sm:items-end">
                           <Field label={`New password for ${item.name}`}>
                             <Input type="password" value={passwordValue} onChange={(event) => setPasswordValue(event.target.value)} />
@@ -283,7 +354,7 @@ function UsersTab({ users, currentUserId, onChanged }: { users: AuthUser[]; curr
 }
 
 function GroupsTab({ users, groups, onChanged }: { users: AuthUser[]; groups: UserGroup[]; onChanged: () => Promise<void> }) {
-  const reviewers = users.filter((user) => user.role === "reviewer");
+  const reviewers = users.filter((user) => user.role === "reviewer" && user.isActive !== false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [editingId, setEditingId] = useState("");
@@ -417,7 +488,7 @@ function GroupsTab({ users, groups, onChanged }: { users: AuthUser[]; groups: Us
 }
 
 function SessionsTab({ users, groups, sessions, onChanged }: { users: AuthUser[]; groups: UserGroup[]; sessions: SessionSummary[]; onChanged: () => Promise<void> }) {
-  const reviewers = users.filter((user) => user.role === "reviewer");
+  const reviewers = users.filter((user) => user.role === "reviewer" && user.isActive !== false);
   const [selectedId, setSelectedId] = useState("");
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [assignment, setAssignment] = useState<Assignment>({ userIds: [], groupIds: [] });

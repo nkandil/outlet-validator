@@ -14,6 +14,7 @@ process.env.DEMO_MODE = "false";
 const runId = `codex-validation-${Date.now()}`;
 const adminEmail = `${runId}-admin@example.com`;
 const reviewerEmail = `${runId}-reviewer@example.com`;
+const archivedEmail = `${runId}-archived@example.com`;
 const password = "temporary-password";
 
 const config = {
@@ -79,6 +80,15 @@ async function main() {
 
   const loadedReviewer = await userRepository.findByEmail(reviewerEmail);
   assert(loadedReviewer?.id === reviewer.id, "created reviewer could not be loaded by email");
+
+  const archived = await userRepository.create({ name: `${runId} Archived`, email: archivedEmail, role: "reviewer", password });
+  await userRepository.deactivate(archived.id);
+  const archivedUsers = await userRepository.list(undefined, true);
+  assert(archivedUsers.some((user) => user.id === archived.id && user.isActive === false), "archived user was not returned when inactive users were included");
+  const reactivated = await userRepository.create({ name: `${runId} Restored`, email: archivedEmail, role: "coordinator", password: "reactivated-password" });
+  assert(reactivated.id === archived.id && reactivated.isActive !== false && reactivated.role === "coordinator", "creating with an archived email did not reactivate the user");
+  await userRepository.deactivate(archived.id);
+  assert(await userRepository.hardDelete(archived.id), "permanent delete did not remove archived smoke user");
 
   const session = await sessionRepository.create(
     {

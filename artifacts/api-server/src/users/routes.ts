@@ -60,11 +60,23 @@ export function createUsersRouter(userRepository: UserRepository) {
     res.json(user);
   });
 
+  router.patch("/:id/restore", requireRole("admin"), async (req, res) => {
+    const user = await userRepository.restore(String(req.params.id));
+    if (!user) throw new HttpError(404, "User not found");
+    res.json(user);
+  });
+
   router.delete("/:id", requireRole("admin"), async (req, res) => {
     const id = String(req.params.id);
     if (currentUser(req).id === id) throw new HttpError(400, "You cannot deactivate your own account");
     const user = await userRepository.deactivate(id);
     if (!user) throw new HttpError(404, "User not found");
+    res.status(204).send();
+  });
+
+  router.delete("/:id/permanent", requireRole("admin"), async (req, res) => {
+    const deleted = await userRepository.hardDelete(String(req.params.id));
+    if (!deleted) throw new HttpError(404, "User not found");
     res.status(204).send();
   });
 

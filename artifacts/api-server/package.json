@@ -8,7 +8,8 @@
     "build": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:db-smoke": "tsx src/real-db-smoke.ts"
+    "test:db-smoke": "tsx src/real-db-smoke.ts",
+    "test:production-smoke": "tsx src/production-smoke.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

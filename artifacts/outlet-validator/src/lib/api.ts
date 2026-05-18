@@ -79,7 +79,13 @@ export const authApi = {
 };
 
 export const usersApi = {
-  list: (role?: UserRole) => request<AuthUser[]>(`/users${role ? `?role=${encodeURIComponent(role)}` : ""}`),
+  list: (role?: UserRole, includeInactive = false) => {
+    const params = new URLSearchParams();
+    if (role) params.set("role", role);
+    if (includeInactive) params.set("includeInactive", "true");
+    const query = params.toString();
+    return request<AuthUser[]>(`/users${query ? `?${query}` : ""}`);
+  },
   create: (body: CreateUserBody) =>
     request<AuthUser>("/users", {
       method: "POST",
@@ -95,8 +101,16 @@ export const usersApi = {
       method: "PATCH",
       body: JSON.stringify({ password })
     }),
+  restore: (id: string) =>
+    request<AuthUser>(`/users/${id}/restore`, {
+      method: "PATCH"
+    }),
   delete: (id: string) =>
     request<void>(`/users/${id}`, {
+      method: "DELETE"
+    }),
+  permanentDelete: (id: string) =>
+    request<void>(`/users/${id}/permanent`, {
       method: "DELETE"
     })
 };

@@ -137,6 +137,47 @@ describe("protected outlet validator routes", () => {
       .expect(403);
   });
 
+  it("reactivates archived users when admins create with an archived email", async () => {
+    const server = app();
+    const admin = await login(server, "admin@example.com");
+
+    await request(server).delete("/api/users/other-reviewer-id").set("Authorization", `Bearer ${admin}`).expect(204);
+
+    const activeUsers = await request(server).get("/api/users").set("Authorization", `Bearer ${admin}`).expect(200);
+    expect(activeUsers.body.map((user: { id: string }) => user.id)).not.toContain("other-reviewer-id");
+
+    const allUsers = await request(server).get("/api/users?includeInactive=true").set("Authorization", `Bearer ${admin}`).expect(200);
+    expect(allUsers.body.find((user: { id: string }) => user.id === "other-reviewer-id")).toMatchObject({ isActive: false });
+
+    const restored = await request(server)
+      .post("/api/users")
+      .set("Authorization", `Bearer ${admin}`)
+      .send({ name: "Restored Other", email: "other@example.com", role: "coordinator", password: "restored-password" })
+      .expect(201);
+
+    expect(restored.body).toMatchObject({ id: "other-reviewer-id", name: "Restored Other", email: "other@example.com", role: "coordinator", isActive: true, disabledAt: null });
+    await request(server).post("/api/auth/login").send({ email: "other@example.com", password: "restored-password" }).expect(200);
+  });
+
+  it("lets admins restore and permanently delete archived users", async () => {
+    const server = app();
+    const admin = await login(server, "admin@example.com");
+    const coordinator = await login(server, "coord@example.com");
+
+    await request(server).delete("/api/users/other-reviewer-id").set("Authorization", `Bearer ${admin}`).expect(204);
+    await request(server).patch("/api/users/other-reviewer-id/restore").set("Authorization", `Bearer ${coordinator}`).expect(403);
+
+    const restored = await request(server).patch("/api/users/other-reviewer-id/restore").set("Authorization", `Bearer ${admin}`).expect(200);
+    expect(restored.body).toMatchObject({ id: "other-reviewer-id", isActive: true, disabledAt: null });
+
+    await request(server).delete("/api/users/other-reviewer-id").set("Authorization", `Bearer ${admin}`).expect(204);
+    await request(server).delete("/api/users/other-reviewer-id/permanent").set("Authorization", `Bearer ${coordinator}`).expect(403);
+    await request(server).delete("/api/users/other-reviewer-id/permanent").set("Authorization", `Bearer ${admin}`).expect(204);
+    await request(server).get("/api/users?includeInactive=true").set("Authorization", `Bearer ${admin}`).expect(200).expect((response) => {
+      expect(response.body.map((user: { id: string }) => user.id)).not.toContain("other-reviewer-id");
+    });
+  });
+
   it("lets admins update user roles and blocks coordinators", async () => {
     const server = app();
     const admin = await login(server, "admin@example.com");
@@ -165,7 +206,7 @@ describe("protected outlet validator routes", () => {
     await request(server).patch("/api/users/other-reviewer-id/password").set("Authorization", `Bearer ${admin}`).send({ password: "short" }).expect(400);
     await request(server).patch("/api/users/missing-id/password").set("Authorization", `Bearer ${admin}`).send({ password: "another-temporary-password" }).expect(404);
     await request(server).delete("/api/users/other-reviewer-id").set("Authorization", `Bearer ${admin}`).expect(204);
-    await request(server).patch("/api/users/other-reviewer-id/password").set("Authorization", `Bearer ${admin}`).send({ password: "another-temporary-password" }).expect(404);
+    await request(server).patch("/api/users/other-reviewer-id/password").set("Authorization", `Bearer ${admin}`).send({ password: "another-temporary-password" }).expect(200);
   });
 
   it("lets admins deactivate users while preserving history and blocking login", async () => {

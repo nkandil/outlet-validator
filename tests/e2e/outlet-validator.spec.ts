@@ -22,13 +22,14 @@ async function mockAuth(page, role: "admin" | "coordinator" | "reviewer" = "admi
 
 async function mockAdminData(page) {
   await mockAuth(page, "admin");
-  await page.route("**/api/users", async (route) => {
+  await page.route("**/api/users**", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify([
         { id: "admin-id", name: "Nour Kandil", email: "nour@example.com", role: "admin" },
-        { id: "reviewer-id", name: "Field Reviewer With Long Name", email: "reviewer@example.com", role: "reviewer" }
+        { id: "reviewer-id", name: "Field Reviewer With Long Name", email: "reviewer@example.com", role: "reviewer" },
+        { id: "archived-id", name: "Archived Field Reviewer", email: "archived@example.com", role: "reviewer", isActive: false, disabledAt: "2026-05-18T00:00:00.000Z" }
       ])
     });
   });
@@ -264,6 +265,8 @@ test("admin users list does not require horizontal scrolling on phone width", as
 
   await expect(page.getByRole("heading", { name: "Admin" })).toBeVisible();
   await expect(page.getByText("Field Reviewer With Long Name")).toBeVisible();
+  await expect(page.getByText("Archived Field Reviewer")).toBeVisible();
+  await expect(page.getByText("Archived", { exact: true })).toBeVisible();
   await expectNoPageOverflow(page);
   await expectNoElementOverflow(page);
 });

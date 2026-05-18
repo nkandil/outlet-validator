@@ -26,7 +26,8 @@ function json(body: unknown, status = 200) {
 
 const users = [
   { id: "admin-id", name: "Admin", email: "admin@example.com", role: "admin" },
-  { id: "reviewer-id", name: "Reviewer", email: "reviewer@example.com", role: "reviewer" }
+  { id: "reviewer-id", name: "Reviewer", email: "reviewer@example.com", role: "reviewer" },
+  { id: "archived-id", name: "Archived Reviewer", email: "archived@example.com", role: "reviewer", isActive: false, disabledAt: "2026-05-15T08:00:00.000Z" }
 ];
 
 const groups = [{ id: "group-id", name: "North Reviewers", description: "Cairo" }];
@@ -81,7 +82,18 @@ function installFetchMock() {
     if (url === "/api/users" && method === "GET") return json(users);
     if (url === "/api/users" && method === "POST") return json({ id: "new-id", name: "New Reviewer", email: "new@example.com", role: "reviewer" }, 201);
     if (url === "/api/users/reviewer-id" && method === "PATCH") return json({ id: "reviewer-id", name: "Reviewer", email: "reviewer@example.com", role: "coordinator" });
+    if (url === "/api/users/archived-id" && method === "PATCH") return json({ id: "archived-id", name: "Archived Reviewer", email: "archived@example.com", role: "coordinator", isActive: false });
     if (url === "/api/users/reviewer-id/password" && method === "PATCH") return json({ id: "reviewer-id", name: "Reviewer", email: "reviewer@example.com", role: "reviewer" });
+    if (url === "/api/users/archived-id/password" && method === "PATCH") return json({ id: "archived-id", name: "Archived Reviewer", email: "archived@example.com", role: "reviewer", isActive: false });
+    if (url === "/api/users/archived-id/restore" && method === "PATCH") return json({ id: "archived-id", name: "Archived Reviewer", email: "archived@example.com", role: "reviewer", isActive: true, disabledAt: null });
+    if (url === "/api/users/archived-id/permanent" && method === "DELETE") {
+      return {
+        ok: true,
+        status: 204,
+        headers: new Headers(),
+        json: async () => ({})
+      };
+    }
     if (url === "/api/users/reviewer-id" && method === "DELETE") {
       return {
         ok: true,
@@ -162,6 +174,7 @@ describe("AdminPage", () => {
         })
       )
     );
+    expect(await screen.findByText("User created or restored")).toBeInTheDocument();
   });
 
   it("changes a user role from the users list", async () => {
@@ -179,6 +192,38 @@ describe("AdminPage", () => {
         })
       )
     );
+  });
+
+  it("shows archived users and manages restore, password, role, and permanent delete actions", async () => {
+    const fetchMock = installFetchMock();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderAdmin();
+
+    expect(await screen.findByText("Archived Reviewer")).toBeInTheDocument();
+    expect(screen.getByText("Archived")).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText("Role for Archived Reviewer"), "coordinator");
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://localhost:4000/api/users/archived-id",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ role: "coordinator" })
+        })
+      )
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /change password for archived reviewer/i }));
+    await userEvent.type(await screen.findByLabelText("New password for Archived Reviewer"), "temporary-password");
+    await userEvent.click(screen.getByRole("button", { name: /save password for archived reviewer/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/api/users/archived-id/password", expect.objectContaining({ method: "PATCH" })));
+
+    await userEvent.click(screen.getByRole("button", { name: /restore archived reviewer/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/api/users/archived-id/restore", expect.objectContaining({ method: "PATCH" })));
+
+    await userEvent.click(screen.getByRole("button", { name: /permanently delete archived reviewer/i }));
+    expect(window.confirm).toHaveBeenCalledWith('Permanently delete "Archived Reviewer"? This cannot be undone.');
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/api/users/archived-id/permanent", expect.objectContaining({ method: "DELETE" })));
   });
 
   it("deactivates a user from the users list", async () => {
